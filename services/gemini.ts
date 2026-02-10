@@ -34,11 +34,15 @@ export const generateFitting = async (
   if (engine === 'google') {
     if (!GEMINI_API_KEY) throw new Error("VITE_GEMINI_API_KEY is not set in Vercel.");
     
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // 使用稳定的 1.5-flash 模型
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
-    const { data, mimeType } = await getGeminiImageData(petImageSource);
+// 找到这一行：
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+
+// 修改为（添加 apiVersion 参数）：
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel(
+  { model: "gemini-1.5-flash" },
+  { apiVersion: "v1" } // 强制指定 v1 版本
+);
     
     // 注意：Gemini 1.5 主要返回文本描述。
     // 如果你要做“试穿”效果，通常是让 Gemini 生成详细 Prompt 再传给图像引擎，
