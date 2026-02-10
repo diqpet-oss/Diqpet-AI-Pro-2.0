@@ -9,8 +9,8 @@ const ASSETS_URLS: Record<string, string> = {
   bichon: 'https://www.diqpet.com/products/corgi.jpg',
   golden: 'https://www.diqpet.com/products/bulldog.jpg',
   happy_raincoat: 'https://www.diqpet.com/products/happy_raincoat.jpg',
-  ribbed_homewear: 'https://www.diqpet.com/products/ribbed_homewear.jpg', // 第二个产品图
-  winter_vest: 'https://www.diqpet.com/products/winter.jpg', // 第三个产品图
+  ribbed_homewear: 'https://www.diqpet.com/products/ribbed_homewear.jpg',
+  winter_vest: 'https://www.diqpet.com/products/winter.jpg',
 };
 
 const STYLE_OPTIONS = [
@@ -20,16 +20,14 @@ const STYLE_OPTIONS = [
 ];
 
 export default function App() {
-  // --- 状态管理 ---
   const [lang, setLang] = useState<Language>('ko');
   const [selectedBreedId, setSelectedBreedId] = useState('poodle');
   const [selectedProductId, setSelectedProductId] = useState('happy_series_vton');
   const [engine, setEngine] = useState<'google' | 'doubao' | 'fal'>('google');
   const [selectedStyle, setSelectedStyle] = useState('Studio');
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(''); // 新增：用于显示具体执行到了哪一步
   const [errorMsg, setErrorMsg] = useState('');
-  
-  // 持久化用户上传的图片
   const [customPetImage, setCustomPetImage] = useState<string | null>(null);
 
   const [assets, setAssets] = useState<ImageAssets>({ 
@@ -38,46 +36,20 @@ export default function App() {
     result: null 
   });
 
-  // 关键：全局唯一声明，解决 Vercel 构建错误
   const fileInputRef = useRef<HTMLInputElement>(null); 
-
   const t = UI_STRINGS[lang];
 
   // --- 产品数据处理 ---
-// --- 产品数据处理 (已根据 translations.ts 修正 ID) ---
-// --- 产品数据处理 ---
   const products = PRODUCT_DATA[lang].map(p => {
-    // 1. 定义映射表：根据你的 translations.ts 里的 ID 映射图片
     const imageMap: Record<string, string> = {
-      'happy_series_vton': ASSETS_URLS.happy_raincoat, // 对应第一个：冲锋衣
-      '9286790289': ASSETS_URLS.ribbed_homewear,       // 对应第二个：家居服
-      'v3_puffer': ASSETS_URLS.winter_vest             // 对应第三个：保暖衣
+      'happy_series_vton': ASSETS_URLS.happy_raincoat,
+      '9286790289': ASSETS_URLS.ribbed_homewear,
+      'v3_puffer': ASSETS_URLS.winter_vest
     };
-
-    // 2. 匹配图片 URL
-    let imageUrl = imageMap[p.id];
-    
-    // 3. 兜底逻辑：如果 ID 匹配不到，通过名称关键词模糊匹配（防止 ID 变更）
-    if (!imageUrl) {
-      if (p.name.includes('家居服') || p.name.includes('홈웨어') || p.name.includes('Loungewear')) {
-        imageUrl = ASSETS_URLS.ribbed_homewear;
-      } else if (p.name.includes('保暖衣') || p.name.includes('방한복') || p.name.includes('Thermal')) {
-        imageUrl = ASSETS_URLS.winter_vest;
-      } else {
-        imageUrl = ASSETS_URLS.happy_raincoat; // 默认显示第一个
-      }
-    }
-  // 3. 链接分配逻辑 (同样根据真实 ID 修正)
-  let externalUrl = 'https://www.coupang.com/vp/products/9312183755'; // 默认雨衣链接
-  
-  if (p.id === 'v3_puffer') {
-    externalUrl = 'https://www.coupang.com/vp/products/9325810280?vendorItemId=94606893258';
-  } else if (p.id === '9286790289') {
-    externalUrl = 'https://www.coupang.com/vp/products/9286790289'; // 这里建议填入家居服的真实链接
-  }
-
-  return { ...p, imageUrl, url: externalUrl };
-});
+    let imageUrl = imageMap[p.id] || ASSETS_URLS.happy_raincoat;
+    let externalUrl = p.id === 'v3_puffer' ? 'https://www.coupang.com/vp/products/9325810280' : `https://www.coupang.com/vp/products/${p.id}`;
+    return { ...p, imageUrl, url: externalUrl };
+  });
 
   const activeProduct = products.find(p => p.id === selectedProductId) || products[0];
 
@@ -101,17 +73,27 @@ export default function App() {
       setErrorMsg(t.petNotSelected);
       return;
     }
+
     setLoading(true);
     setErrorMsg('');
+    // 根据引擎设置不同的进度提示
+    setLoadingStep(engine === 'google' ? 'Gemini Analyzing & SAM Masking...' : 'Generating Mask...');
+
     try {
+      // 调用重构后的 gemini.ts，它内部会自动处理 SAM 和 Flux Fill
       const res = await generateFitting(engine, assets.pet, activeProduct.description, selectedStyle);
-      setAssets(prev => ({ ...prev, result: res }));
+      
+      if (res) {
+        setAssets(prev => ({ ...prev, result: res }));
+      } else {
+        throw new Error("No image returned from AI");
+      }
     } catch (e: any) {
-      console.error(e);
-      // 处理截图中的 404 或限流错误
-      setErrorMsg(e.message || "AI Rendering Failed");
+      console.error("Fitting Error:", e);
+      setErrorMsg(e.message || "AI Rendering Failed. Please try again.");
     } finally {
       setLoading(false);
+      setLoadingStep('');
     }
   };
 
@@ -125,7 +107,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-3xl font-black tracking-tighter uppercase italic">DIQPET <span className="text-orange-500">AI</span></h1>
-            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Next-Gen Virtual Fitting</p>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Identity-Preserved Fitting</p>
           </div>
         </div>
         <div className="flex gap-2 bg-zinc-900/80 p-1.5 rounded-2xl border border-white/5">
@@ -136,9 +118,9 @@ export default function App() {
       </header>
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Side: Controls */}
         <div className="lg:col-span-4 space-y-6">
           
-          {/* Step 1: Pet Model */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Step 1: Pet Model</h2>
@@ -155,24 +137,18 @@ export default function App() {
                   <img src={ASSETS_URLS[id]} className="w-full h-full object-cover" alt={id} />
                 </button>
               ))}
-
-              {/* 上传后的图片格子，切换后不消失 */}
               {customPetImage && (
                 <button onClick={() => { setAssets(prev => ({ ...prev, pet: customPetImage, result: null })); setSelectedBreedId('custom'); }}
                   className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all relative ${selectedBreedId === 'custom' ? 'border-orange-600 scale-105' : 'border-transparent opacity-40 hover:opacity-100'}`}>
                   <img src={customPetImage} className="w-full h-full object-cover" alt="Custom upload" />
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    <span className="text-[8px] font-bold text-white bg-orange-600 px-1 rounded shadow-sm">READY</span>
-                  </div>
                 </button>
               )}
             </div>
           </section>
 
-          {/* Step 2: Apparel - 已修复图片重复问题 */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
             <h2 className="text-xs font-black mb-5 uppercase tracking-widest text-zinc-400">Step 2: Apparel</h2>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-3 max-h-[260px] overflow-y-auto pr-2 custom-scrollbar">
               {products.map(p => (
                 <button key={p.id} onClick={() => { setSelectedProductId(p.id); setAssets(prev => ({ ...prev, clothing: p.imageUrl, result: null })); }}
                   className={`w-full flex items-center gap-4 p-3 rounded-[1.5rem] border transition-all ${selectedProductId === p.id ? 'bg-orange-600/20 border-orange-600/50' : 'bg-white/5 border-transparent hover:border-white/10'}`}>
@@ -183,37 +159,51 @@ export default function App() {
             </div>
           </section>
 
-          {/* AI Config */}
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2">
               {['google', 'doubao', 'fal'].map((id) => (
-                <button key={id} onClick={() => setEngine(id as any)} className={`py-3 rounded-2xl border-2 text-[10px] font-black transition-all ${engine === id ? 'border-orange-600 bg-orange-600/10' : 'border-white/5 bg-zinc-900'}`}>
+                <button key={id} onClick={() => setEngine(id as any)} className={`py-3 rounded-2xl border-2 text-[10px] font-black transition-all ${engine === id ? 'border-orange-600 bg-orange-600/10 text-orange-500' : 'border-white/5 bg-zinc-900 text-zinc-500'}`}>
                   {id.toUpperCase()}
                 </button>
               ))}
             </div>
             <div className="grid grid-cols-3 gap-2">
               {STYLE_OPTIONS.map((s) => (
-                <button key={s.id} onClick={() => setSelectedStyle(s.id)} className={`py-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${selectedStyle === s.id ? 'bg-white text-black' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}>
+                <button key={s.id} onClick={() => setSelectedStyle(s.id)} className={`py-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${selectedStyle === s.id ? 'bg-white text-black border-white' : 'bg-white/5 text-zinc-500 border-white/5 hover:text-zinc-300'}`}>
                   <i className={`fa-solid ${s.icon} text-xs`}></i>
-                  <span className="text-[8px] font-black uppercase">{s.name[lang as 'zh' | 'ko' | 'en'] || s.id}</span>
+                  <span className="text-[8px] font-black uppercase">{s.name[lang] || s.id}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <button disabled={loading} onClick={handleGenerate} className="w-full py-6 bg-orange-600 hover:bg-orange-500 rounded-[2rem] flex items-center justify-center gap-4 transition-all shadow-xl active:scale-95 disabled:opacity-50">
-            <i className={`fa-solid ${loading ? 'fa-spinner animate-spin' : 'fa-wand-magic-sparkles'} text-xl`}></i>
-            <span className="text-xl font-black italic uppercase">{loading ? t.rendering : t.generate}</span>
+          <button disabled={loading} onClick={handleGenerate} className="w-full py-6 bg-orange-600 hover:bg-orange-500 rounded-[2rem] flex flex-col items-center justify-center transition-all shadow-xl active:scale-95 disabled:opacity-50">
+            <div className="flex items-center gap-4">
+               <i className={`fa-solid ${loading ? 'fa-spinner animate-spin' : 'fa-wand-magic-sparkles'} text-xl`}></i>
+               <span className="text-xl font-black italic uppercase">{loading ? t.rendering : t.generate}</span>
+            </div>
+            {loadingStep && <span className="text-[9px] font-bold mt-1 opacity-60 uppercase tracking-widest">{loadingStep}</span>}
           </button>
           
           {errorMsg && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-[10px] text-red-500 font-black text-center">{errorMsg}</div>}
         </div>
 
-       {/* Display Area */}
+        {/* Right Side: Display Area */}
         <div className="lg:col-span-8 flex flex-col gap-6">
           <div className="flex-grow aspect-square md:aspect-auto md:min-h-[600px] bg-zinc-900/60 rounded-[3rem] border border-white/5 relative overflow-hidden flex items-center justify-center shadow-inner">
-            {/* ... 原有的渲染逻辑保持不变 ... */}
+            
+            {/* Loading Overlay */}
+            {loading && (
+              <div className="absolute inset-0 z-20 bg-black/40 backdrop-blur-md flex flex-col items-center justify-center">
+                 <div className="w-24 h-24 relative">
+                    <div className="absolute inset-0 border-4 border-orange-600/20 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-t-orange-600 rounded-full animate-spin"></div>
+                    <i className="fa-solid fa-dog absolute inset-0 m-auto w-fit h-fit text-3xl text-orange-600 animate-pulse"></i>
+                 </div>
+                 <p className="mt-6 text-orange-500 font-black italic uppercase tracking-widest animate-pulse">{loadingStep || 'Processing...'}</p>
+              </div>
+            )}
+
             {assets.result ? (
               <img src={assets.result} className="w-full h-full object-contain p-6 animate-in zoom-in duration-500" alt="Result" />
             ) : (
@@ -222,44 +212,33 @@ export default function App() {
                 <p className="text-[10px] font-black uppercase tracking-widest">{t.waiting}</p>
               </div>
             )}
-            {/* ... Loading 遮罩保持不变 ... */}
           </div>
 
-          {/* 新增：功能操作栏 (分享 & 保存) */}
-          {assets.result && (
+          {/* Action Bar */}
+          {assets.result && !loading && (
             <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-4">
-              <button 
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = assets.result!;
-                  link.download = `DIQPET_AI_${Date.now()}.png`;
-                  link.click();
-                }}
-                className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/5 active:scale-95"
-              >
+              <button onClick={() => {
+                const link = document.createElement('a');
+                link.href = assets.result!;
+                link.download = `DIQPET_VTON_${Date.now()}.png`;
+                link.click();
+              }} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/5 active:scale-95">
                 <i className="fa-solid fa-download text-lg text-orange-500"></i>
                 <span className="text-sm font-bold uppercase">{t.save}</span>
               </button>
               
-              <button 
-                onClick={async () => {
-                  if (navigator.share) {
-                    try {
-                      await navigator.share({ title: 'DIQPET AI Fitting', text: 'Look at my pet!', url: window.location.href });
-                    } catch (err) { console.log(err) }
-                  } else {
-                    alert('Copy link to share: ' + window.location.href);
-                  }
-                }}
-                className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/5 active:scale-95"
-              >
+              <button onClick={async () => {
+                if (navigator.share) {
+                  try { await navigator.share({ title: 'DIQPET AI', text: 'Check out my pet style!', url: window.location.href }); } catch {}
+                } else { alert('Link copied!'); }
+              }} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/5 active:scale-95">
                 <i className="fa-solid fa-share-nodes text-lg text-orange-500"></i>
                 <span className="text-sm font-bold uppercase">{t.share}</span>
               </button>
             </div>
           )}
 
-          {/* 购买按钮保持不变 */}
+          {/* Buy Button */}
           <button onClick={() => window.open(activeProduct.url, "_blank")} className="w-full py-6 bg-[#007AFF] hover:bg-[#0062CC] rounded-[2rem] flex items-center justify-center gap-4 transition-all shadow-lg active:scale-95">
             <i className="fa-solid fa-cart-shopping text-2xl"></i>
             <span className="text-3xl font-black italic uppercase">{t.buyNow}</span>
