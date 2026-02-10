@@ -1,0 +1,11 @@
+/* --- 滚动条美化：添加到 index.css 末尾 --- */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #ea580c; /* 匹配你 UI 的 orange-600 颜色 */
+  border-radius: 10px;
+}
