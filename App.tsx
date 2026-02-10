@@ -44,33 +44,36 @@ export default function App() {
   const t = UI_STRINGS[lang];
 
   // --- 产品数据处理 ---
+// --- 产品数据处理 (已根据 translations.ts 修正 ID) ---
 const products = PRODUCT_DATA[lang].map(p => {
-  // 1. 定义映射表：将 ID 映射到对应的图片 Key
+  // 定义映射表：直接使用你 translations.ts 里的真实 ID
   const imageMap: Record<string, string> = {
-    'happy_series_vton': ASSETS_URLS.happy_raincoat,
-    'ribbed_homewear': ASSETS_URLS.ribbed_homewear,
-    'winter_padding_vest': ASSETS_URLS.winter_vest
+    'happy_series_vton': ASSETS_URLS.happy_raincoat, // 雨衣
+    '9286790289': ASSETS_URLS.ribbed_homewear,       // 家居服 (之前是 ribbed_homewear)
+    'v3_puffer': ASSETS_URLS.winter_vest            // 羽绒服 (之前是 winter_padding_vest)
   };
 
-  // 2. 优先通过 ID 匹配，如果匹配不到，通过名字中的关键词模糊匹配
+  // 1. 获取图片 URL
   let imageUrl = imageMap[p.id];
   
+  // 2. 兜底逻辑：如果 ID 变了，通过名字包含的关键字来猜
   if (!imageUrl) {
-    if (p.name.includes('골지') || p.name.includes('Lounge') || p.name.includes('Homewear')) {
+    if (p.name.includes('골지') || p.name.includes('螺纹') || p.name.includes('Ribbed')) {
       imageUrl = ASSETS_URLS.ribbed_homewear;
-    } else if (p.name.includes('패딩') || p.name.includes('Winter') || p.name.includes('Vest')) {
+    } else if (p.name.includes('패딩') || p.name.includes('羽绒') || p.name.includes('Puffer')) {
       imageUrl = ASSETS_URLS.winter_vest;
     } else {
-      imageUrl = ASSETS_URLS.happy_raincoat; // 最终兜底
+      imageUrl = ASSETS_URLS.happy_raincoat;
     }
   }
 
-  // 3. 链接分配逻辑
-  let externalUrl = `https://www.coupang.com/vp/products/${p.id}`;
-  if (p.id === 'winter_padding_vest') {
+  // 3. 链接分配逻辑 (同样根据真实 ID 修正)
+  let externalUrl = 'https://www.coupang.com/vp/products/9312183755'; // 默认雨衣链接
+  
+  if (p.id === 'v3_puffer') {
     externalUrl = 'https://www.coupang.com/vp/products/9325810280?vendorItemId=94606893258';
-  } else {
-    externalUrl = 'https://www.coupang.com/vp/products/9312183755';
+  } else if (p.id === '9286790289') {
+    externalUrl = 'https://www.coupang.com/vp/products/9312183755'; // 这里建议填入家居服的真实链接
   }
 
   return { ...p, imageUrl, url: externalUrl };
