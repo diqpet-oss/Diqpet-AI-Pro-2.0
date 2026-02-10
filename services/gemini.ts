@@ -26,17 +26,17 @@ export const generateFitting = async (
   description: string
 ): Promise<string> => {
   
- if (engine === 'google') {
+if (engine === 'google') {
     if (!GEMINI_API_KEY) throw new Error("VITE_GEMINI_API_KEY is not set in Vercel.");
     
-    // 关键修复：确保 genAI 只声明一次，并明确使用 v1beta 版本
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    // 升级为最新的 2.0 Flash 模型，并明确指定使用 v1beta 接口
     const model = genAI.getGenerativeModel(
-      { model: "gemini-1.5-flash" },
+      { model: "gemini-2.0-flash" }, 
       { apiVersion: "v1beta" } 
     );
     
-    // 关键修复：确保定义了 imageData，解决 "DATA IS NOT DEFINED" 错误
+    // 核心修复：确保 imageData 被正确定义并调用数据
     const imageData = await getGeminiImageData(petImageSource);
     
     try {
@@ -53,7 +53,8 @@ export const generateFitting = async (
       const response = await result.response;
       console.log("Gemini Description:", response.text());
       
-      engine = 'fal'; // 描述完成后切换到渲染引擎
+      // 切换到渲染引擎
+      engine = 'fal'; 
     } catch (error: any) {
       throw new Error(`Gemini Error: ${error.message}`);
     }
