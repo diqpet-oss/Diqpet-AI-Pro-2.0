@@ -53,30 +53,44 @@ export const generateFitting = async (
     if (!GEMINI_API_KEY) throw new Error("GOOGLE_AUTH_ERROR");
 
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // 必须使用 v1beta 接口调用最新的 2.0 模型
+    
+    // --- 修改点 1: 切换到更轻量的 1.5-flash，它的免费配额比 2.0 高得多 ---
     const model = genAI.getGenerativeModel(
-      { model: "gemini-2.0-flash" },
-      { apiVersion: "v1beta" }
+      { model: "gemini-1.5-flash" } // 1.5-flash 是目前最稳定且配额最足的
     );
 
     try {
       const { data, mimeType } = await getGeminiImageData(petImageSource);
+      
+      // --- 修改点 2: 优化 Prompt，让 Gemini 作为一个精准的“试衣指令翻译官” ---
+      const prompt = `
+        Analyze this pet image and the following clothing description: "${description}".
+        Generate a highly detailed, technical image-to-image prompt for an AI artist.
+        Style: ${style}. 
+        Requirements: Keep the original pet's face and breed, but replace its torso with the described clothing.
+        High resolution, cinematic lighting, photorealistic.
+      `;
+
       const result = await model.generateContent([
         { inlineData: { data, mimeType } },
-        { text: `Render this pet wearing: ${description}. Style: ${style}. Photorealistic, 8k.` }
+        { text: prompt }
       ]);
 
       const response = await result.response;
-      // 注意：Gemini 2.0 目前主要通过文本返回或生成描述，
-      // 如果 Gemini 无法直接生成图片文件，建议此处逻辑改为“生成描述后再传给 FAL”
-      console.log("Gemini Response:", response.text());
+      const optimizedPrompt = response.text();
       
-      // 如果你的需求是“试穿”，Gemini 通常作为 Prompt 优化器
-      // 这里暂时演示切换到 FAL 进行最终渲染
-      return await generateFitting('fal', petImageSource, description, style);
+      console.log("Gemini Optimized Prompt:", optimizedPrompt);
+      
+      // --- 修改点 3: 将 Gemini 生成的“专业描述”传给 FAL 进行绘图 ---
+      // 这样即便 Gemini 免费版有限制，Flash 模型也能抗住更多请求
+      return await generateFitting('fal', petImageSource, optimizedPrompt, style);
+      
     } catch (error: any) {
-      if (error.message.includes("429")) throw new Error("Google API 配额超限，请稍后重试");
-      throw new Error(`Google 逻辑失败: ${error.message}`);
+      // --- 修改点 4: 增加更详细的错误捕获 ---
+      if (error.message?.includes("429")) {
+        throw new Error("Google API 免费额度已耗尽。请在上方切换至 'DOUBAO' 或 'FAL' 引擎继续使用。");
+      }
+      throw new Error(`Google 引擎暂不可用: ${error.message}`);
     }
   }
 
