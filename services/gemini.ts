@@ -7,7 +7,7 @@ const FAL_KEY = import.meta.env.VITE_FAL_KEY;
 const DOUBAO_API_KEY = import.meta.env.VITE_DOUBAO_API_KEY;
 
 /**
- * 调试日志助手
+ * 调试日志助手：记录每一步的执行时间
  */
 const logStep = (stepName: string, startTime: number) => {
   const duration = ((performance.now() - startTime) / 1000).toFixed(2);
@@ -19,7 +19,7 @@ const logStep = (stepName: string, startTime: number) => {
 };
 
 /**
- * 将图片 URL 转换为 Gemini 需要的 Base64 格式
+ * 图片处理：将图片 URL 转换为 Gemini 能够识别的 Base64 数据
  */
 const getGeminiImageData = async (source: string): Promise<{ data: string; mimeType: string }> => {
   try {
@@ -39,39 +39,45 @@ const getGeminiImageData = async (source: string): Promise<{ data: string; mimeT
 };
 
 /**
- * 步骤 2: 使用最新的 SAM 2 提取宠物轮廓
- * 增加了 20 秒超时机制，解决 VPN 环境下的卡死问题
+ * 步骤 2: 使用 SAM 2 提取宠物轮廓
+ * 采用 fal.run 模式，比 subscribe 更能抵抗 VPN 抖动导致的 ApiError
  */
 async function generatePetMask(imageUrl: string): Promise<string> {
   const start = performance.now();
   fal.config({ credentials: FAL_KEY });
 
   try {
-    // 使用 Promise.race 防止请求由于网络原因永久 Pending
-    const result: any = await Promise.race([
-      fal.subscribe("fal-ai/sam2", {
-        input: {
-          image_url: imageUrl,
-          prompt: "the full body of the animal, torso, clothing area", // SAM2 使用 prompt 字段
-          mask_limit: 1
-        }
-      }),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("SAM 2 识别超时，请尝试切换 VPN 节点")), 20000)
-      )
-    ]);
+    console.log("正在通过 SAM 2 识别宠物轮廓...");
+    
+    // 使用 fal.run 替代 fal.subscribe，直接获取结果
+    const result: any = await fal.run("fal-ai/sam2", {
+      input: {
+        image_url: imageUrl,
+        prompt: "the full body of the animal, excluding the head", // SAM 2 的核心识别指令
+        mask_limit: 1
+      }
+    });
+
+    // 适配 SAM 2 返回的字段结构
+    const maskUrl = result?.masks?.[0]?.url || result?.image?.url;
+    
+    if (!maskUrl) {
+      throw new Error("识别成功但未获得有效遮罩图");
+    }
 
     logStep("步骤 2: SAM 2 遮罩获取完成", start);
-    // SAM 2 返回的字段可能在 masks 或 image 中
-    return result?.masks?.[0]?.url || result?.image?.url || "";
+    return maskUrl;
   } catch (error: any) {
-    console.error("SAM Error:", error);
-    throw new Error(error.message || "无法识别宠物轮廓");
+    console.error("SAM API 详情:", error);
+    // 针对 ApiError 提供更友好的提示
+    throw new Error(error.message?.includes("ApiError") 
+      ? "识别服务配置错误，请尝试切换至美国 VPN 节点" 
+      : "宠物识别超时，请刷新重试");
   }
 }
 
 /**
- * 步骤 4: Flux Fill 局部重绘
+ * 步骤 4: 使用 Flux.1 Dev Fill 进行精准穿衣渲染
  */
 async function executeInpaint(imageUrl: string, maskUrl: string, prompt: string): Promise<string> {
   const start = performance.now();
@@ -79,19 +85,19 @@ async function executeInpaint(imageUrl: string, maskUrl: string, prompt: string)
     input: {
       image_url: imageUrl,
       mask_url: maskUrl,
-      prompt: `${prompt}, high quality professional studio shot, plain white background`,
+      prompt: `${prompt}, professional photography, high-end pet fashion, white background, ultra-detailed`,
       strength: 0.85, 
-      num_inference_steps: 20, 
+      num_inference_steps: 25, // 增加步数以获得更高画质
       guidance_scale: 3.5,
       enable_safety_checker: false
     }
   });
-  logStep("步骤 4: Flux 渲染完成", start);
+  logStep("步骤 4: Flux 最终渲染完成", start);
   return result?.images?.[0]?.url || "";
 }
 
 /**
- * 主函数：生成试衣结果
+ * 主工作流入口
  */
 export const generateFitting = async (
   engine: 'doubao' | 'fal' | 'google', 
@@ -101,52 +107,55 @@ export const generateFitting = async (
 ): Promise<string> => {
   const totalStart = performance.now();
   console.clear();
-  console.log("%c🚀 任务启动", "color: white; background: #ea580c; padding: 2px 8px; border-radius: 4px;");
+  console.log("%c🚀 任务启动: " + engine.toUpperCase(), "color: white; background: #2563eb; padding: 2px 8px; border-radius: 4px;");
 
   // --- 引擎 1: 豆包 ---
   if (engine === 'doubao') {
     const openai = new OpenAI({ apiKey: DOUBAO_API_KEY, baseURL: "https://ark.cn-beijing.volces.com/api/v3", dangerouslyAllowBrowser: true });
     const response = await openai.images.generate({
       model: "doubao-seedream-4-5-251128",
-      prompt: `A pet wearing ${description}. Solid white background.`,
+      prompt: `A high quality photo of a pet wearing ${description}, white background`,
     });
     return response.data[0]?.url || "";
   } 
 
-  // --- 引擎 2: Google 联合逻辑 (串行诊断模式) ---
+  // --- 引擎 2: Google + FAL 联合逻辑 (推荐模式) ---
   if (engine === 'google') {
     if (!GEMINI_API_KEY) throw new Error("GOOGLE_AUTH_ERROR");
 
-    // 步骤 1: 图片数据准备
+    // 1. 转换图片
     const imgStart = performance.now();
     const imgData = await getGeminiImageData(petImageSource);
-    logStep("步骤 1: 图片转换完成", imgStart);
+    logStep("步骤 1: 基础图片处理完成", imgStart);
 
-    // 步骤 2: 提取掩码 (SAM 2)
+    // 2. 捕捉模特 (SAM 2)
     const maskUrl = await generatePetMask(petImageSource);
-    if (!maskUrl) throw new Error("未能生成有效的宠物遮罩");
 
-    // 步骤 3: Gemini 分析 (升级到最新版 Gemini 3 Flash 以获得更强性能)
+    // 3. AI 视觉分析 (使用 Gemini 2.0 Flash)
     const geminiStart = performance.now();
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // 提示：gemini-3-flash 是 2026 年的主力模型，性能远超 1.5
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const geminiPrompt = `Look at the pet. Generate an inpainting prompt to replace its body with: "${description}". Keep the head and breed identical. Background MUST be solid white.`;
+    const geminiPrompt = `Task: Pet virtual fitting. 
+      Original image contains a pet. 
+      Action: Keep the head and breed identical. Replace the body with: "${description}". 
+      Requirement: Must be professional studio lighting, pure solid white background. 
+      Output: Generate a concise English inpainting prompt.`;
+
     const result = await model.generateContent([
       { inlineData: { data: imgData.data, mimeType: imgData.mimeType } },
       { text: geminiPrompt }
     ]);
     const optimizedPrompt = result.response.text();
-    logStep("步骤 3: Gemini 分析完成", geminiStart);
+    logStep("步骤 3: Gemini 视觉分析完成", geminiStart);
 
-    // 步骤 4: Flux 最终渲染
+    // 4. 执行渲染
     const resUrl = await executeInpaint(petImageSource, maskUrl, optimizedPrompt);
     logStep("✨ 全流程总计耗时", totalStart);
     return resUrl;
   }
 
-  // --- 引擎 3: FAL 直接渲染 ---
+  // --- 引擎 3: FAL 快速模式 ---
   const maskUrl = await generatePetMask(petImageSource);
   const finalUrl = await executeInpaint(petImageSource, maskUrl, description);
   logStep("✨ 全流程总计耗时", totalStart);
