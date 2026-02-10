@@ -1,4 +1,3 @@
-
 {
   "name": "diqpet-ai-pro",
   "version": "1.0.0",
@@ -9,7 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.4.0",
+    "@google/generative-ai": "^0.21.0",
     "@fal-ai/client": "^1.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
