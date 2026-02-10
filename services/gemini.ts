@@ -94,20 +94,41 @@ export const generateFitting = async (
     }
   }
 
-  // 3. Fal.ai Flux 引擎
+
+ // 3. Fal.ai Flux 引擎
   else {
     fal.config({ credentials: FAL_KEY });
     try {
+      // 使用 subscribe 调用 image-to-image 模型
       const result: any = await fal.subscribe("fal-ai/flux/dev/image-to-image", {
         input: {
           image_url: petImageSource, 
-          prompt: `High-end pet fashion, wearing ${description}, ${style} background, 8k photorealistic`,
-          strength: 0.65, 
+          // 增强的 Prompt，确保 AI 理解是给宠物穿衣服
+          prompt: `A professional photo of a dog wearing ${description}. The dog is in a ${style} setting. The outfit fits perfectly on the pet body, maintaining original pet head and features, 8k resolution, highly detailed fashion photography.`,
+          // 降低强度到 0.55，防止宠物长相走样
+          strength: 0.55, 
+          response_format: "url"
         }
       });
-      return result?.images?.[0]?.url || "";
+
+      // 调试输出，如果还是空，可以在浏览器控制台看这个 Log
+      console.log("FAL 完整响应:", result);
+
+      // 兼容性取值：尝试多种可能的路径获取 URL
+      const imageUrl = result?.images?.[0]?.url || result?.image?.url || "";
+      
+      if (!imageUrl) {
+        throw new Error("FAL 引擎未返回有效图片地址");
+      }
+
+      return imageUrl;
+
     } catch (err: any) {
-      throw new Error(`Fal.ai 错误: ${err.message}`);
+      console.error("FAL 详细错误:", err);
+      if (err.message?.includes("402")) {
+        throw new Error("FAL.ai 账户余额不足，请充值");
+      }
+      throw new Error(`渲染失败: ${err.message}`);
     }
   }
 };
