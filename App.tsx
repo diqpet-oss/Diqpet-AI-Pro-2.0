@@ -19,17 +19,30 @@ const STYLE_OPTIONS = [
 ];
 
 export default function App() {
-  const [lang, setLang] = useState<Language>('ko');
-  const [engine, setEngine] = useState<'doubao' | 'fal' | 'google'>('google');
-  const [selectedStyle, setSelectedStyle] = useState('Studio'); // 新增风格状态
-  const [selectedProductId, setSelectedProductId] = useState('happy_series_vton');
-  const [selectedBreedId, setSelectedBreedId] = useState('poodle');
-  
-  const [assets, setAssets] = useState<ImageAssets>({ 
-    pet: ASSETS_URLS.poodle, 
-    clothing: ASSETS_URLS.happy_raincoat, 
-    result: null 
-  });
+const [selectedBreedId, setSelectedBreedId] = useState('poodle');
+const [assets, setAssets] = useState<ImageAssets>({ 
+  pet: ASSETS_URLS.poodle, 
+  clothing: ASSETS_URLS.happy_raincoat, 
+  result: null 
+});
+
+const fileInputRef = useRef<HTMLInputElement>(null);
+
+// 核心功能：处理本地图片上传并立即显示
+const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      // 1. 将 Base64 存入 assets.pet 以便 UI 显示
+      // 2. 将 ID 设为 'custom' 用来触发 UI 上的选中状态
+      setAssets(prev => ({ ...prev, pet: base64String, result: null }));
+      setSelectedBreedId('custom');
+    };
+    reader.readAsDataURL(file);
+  }
+};
   
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -92,31 +105,52 @@ export default function App() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
           {/* 步骤 1: 宠物选择 */}
-          <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
-            <div className="flex justify-between mb-5 items-center">
-              <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Step 1: Pet Model</h2>
-              <button onClick={() => fileInputRef.current?.click()} className="text-[10px] bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 uppercase font-black hover:bg-orange-600 transition-colors">Upload</button>
-              <input type="file" ref={fileInputRef} onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    setAssets(prev => ({ ...prev, pet: reader.result as string, result: null }));
-                    setSelectedBreedId('custom');
-                  };
-                  reader.readAsDataURL(file);
-                }
-              }} hidden accept="image/*" />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {['poodle', 'bichon', 'golden'].map(id => (
-                <button key={id} onClick={() => { setAssets(prev => ({ ...prev, pet: ASSETS_URLS[id], result: null })); setSelectedBreedId(id); }}
-                  className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedBreedId === id ? 'border-orange-600 scale-105' : 'border-transparent opacity-50'}`}>
-                  <img src={ASSETS_URLS[id]} className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
-          </section>
+      <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
+  <div className="flex justify-between items-center mb-5">
+    <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Step 1: Pet Model</h2>
+    
+    {/* 修复：点击此按钮会打开文件选择器 */}
+    <button 
+      onClick={() => fileInputRef.current?.click()}
+      className="text-[10px] font-black uppercase bg-white/5 px-4 py-2 rounded-xl border border-white/10 hover:bg-orange-600 transition-all"
+    >
+      <i className="fa-solid fa-upload mr-2"></i>UPLOAD
+    </button>
+    <input 
+      type="file" 
+      ref={fileInputRef} 
+      onChange={handleFileChange} 
+      hidden 
+      accept="image/*" 
+    />
+  </div>
+
+  <div className="grid grid-cols-4 gap-3">
+    {/* 渲染预设的三个品种 */}
+    {['poodle', 'bichon', 'golden'].map(id => (
+      <button 
+        key={id}
+        onClick={() => {
+          setAssets(prev => ({ ...prev, pet: ASSETS_URLS[id], result: null }));
+          setSelectedBreedId(id);
+        }}
+        className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedBreedId === id ? 'border-orange-600 scale-105 shadow-lg shadow-orange-600/20' : 'border-transparent opacity-40 hover:opacity-100'}`}
+      >
+        <img src={ASSETS_URLS[id]} className="w-full h-full object-cover" />
+      </button>
+    ))}
+
+    {/* 修复：如果选择了自定义图片，在这里显示预览图 */}
+    {selectedBreedId === 'custom' && (
+      <div className="aspect-square rounded-2xl overflow-hidden border-2 border-orange-600 scale-105 relative">
+        <img src={assets.pet} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-orange-600/20 flex items-center justify-center">
+          <i className="fa-solid fa-check text-white shadow-sm"></i>
+        </div>
+      </div>
+    )}
+  </div>
+</section>
 
           {/* 步骤 2: 产品选择 */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
