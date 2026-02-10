@@ -73,7 +73,7 @@ const products = PRODUCT_DATA[lang].map(p => {
   if (p.id === 'v3_puffer') {
     externalUrl = 'https://www.coupang.com/vp/products/9325810280?vendorItemId=94606893258';
   } else if (p.id === '9286790289') {
-    externalUrl = 'https://www.coupang.com/vp/products/9312183755'; // 这里建议填入家居服的真实链接
+    externalUrl = 'https://www.coupang.com/vp/products/9286790289'; // 这里建议填入家居服的真实链接
   }
 
   return { ...p, imageUrl, url: externalUrl };
