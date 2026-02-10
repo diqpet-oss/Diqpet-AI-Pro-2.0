@@ -165,7 +165,34 @@ export default function App() {
           {errorMsg && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-[10px] text-red-500 font-bold text-center leading-relaxed">{errorMsg}</div>}
         </div>
 
-        {/* Display Area 保持原样... */}
+        {/* Display Area */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          <div className="flex-grow aspect-square md:aspect-auto md:min-h-[600px] bg-zinc-900/60 rounded-[3rem] border border-white/5 relative overflow-hidden flex items-center justify-center shadow-inner">
+            <div className="absolute top-6 left-6 z-10 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/5">
+               <span className="text-[9px] font-black tracking-[0.3em] text-orange-500 uppercase italic">
+                {engine.toUpperCase()} AI RENDER MODE
+               </span>
+            </div>
+            {assets.result ? (
+              <img src={assets.result} className="w-full h-full object-contain p-6 animate-in zoom-in duration-500" alt="Result" />
+            ) : (
+              <div className="text-zinc-800 flex flex-col items-center gap-4">
+                <i className="fa-solid fa-dog text-[120px] opacity-10"></i>
+                <p className="text-[10px] font-black uppercase tracking-widest">{t.waiting}</p>
+              </div>
+            )}
+            {loading && (
+              <div className="absolute inset-0 bg-black/70 backdrop-blur-xl flex flex-col items-center justify-center gap-6 z-20">
+                <div className="w-20 h-20 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm font-black uppercase tracking-[0.4em] animate-pulse">{t.rendering}</p>
+              </div>
+            )}
+          </div>
+          <button onClick={() => window.open(activeProduct.url, "_blank")} className="w-full py-6 bg-[#007AFF] hover:bg-[#0062CC] rounded-[2rem] flex items-center justify-center gap-4 transition-all shadow-lg active:scale-95">
+            <i className="fa-solid fa-cart-shopping text-2xl"></i>
+            <span className="text-3xl font-black italic uppercase">{t.buyNow}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
