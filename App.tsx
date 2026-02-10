@@ -54,19 +54,41 @@ export default function App() {
   const activeProduct = products.find(p => p.id === selectedProductId) || products[0];
 
   // --- 交互逻辑 ---
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setCustomPetImage(base64String); 
-        setAssets(prev => ({ ...prev, pet: base64String, result: null }));
+  
+// 替换 App.tsx 中的 handleFileChange
+const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new Image();
+      img.src = reader.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1024; // 限制最大宽度，减少体积
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // 压缩质量为 0.7
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        setCustomPetImage(compressedBase64);
+        setAssets(prev => ({ ...prev, pet: compressedBase64, result: null }));
         setSelectedBreedId('custom');
       };
-      reader.readAsDataURL(file);
-    }
-  };
+    };
+    reader.readAsDataURL(file);
+  }
+};
 
 const handleGenerate = async () => {
   if (!assets.pet) {
