@@ -31,6 +31,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null); 
   const t = UI_STRINGS[lang];
 
+  // 产品数据处理逻辑
   const products = PRODUCT_DATA[lang].map(p => {
     const imageMap: Record<string, string> = {
       'happy_series_vton': ASSETS_URLS.happy_raincoat,
@@ -44,16 +45,19 @@ export default function App() {
 
   const activeProduct = products.find(p => p.id === selectedProductId) || products[0];
 
+  // 关键：高性能图片上传与压缩逻辑
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setLoading(true);
+      setLoadingStep("正在压缩图片...");
       const reader = new FileReader();
       reader.onloadend = () => {
         const img = new Image();
         img.src = reader.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 1024; 
+          const MAX_WIDTH = 1024; // 强制限制宽度
           let width = img.width;
           let height = img.height;
 
@@ -67,10 +71,13 @@ export default function App() {
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
           
+          // 导出为 0.7 质量的 JPEG，极大减小体积，防止 AI 流程卡死
           const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
           setCustomPetImage(compressedBase64);
           setAssets(prev => ({ ...prev, pet: compressedBase64, result: null }));
           setSelectedBreedId('custom');
+          setLoading(false);
+          setLoadingStep('');
         };
       };
       reader.readAsDataURL(file);
@@ -86,28 +93,30 @@ export default function App() {
     setLoading(true);
     setErrorMsg('');
     
-    // 简化后的进度条逻辑
-    const progressSteps = ["AI 正在识别...", "锁定位置...", "渲染白底图..."];
+    // 进度条文案，模拟串行逻辑步骤
+    const progressSteps = ["AI 正在识别品种...", "提取宠物身体轮廓...", "正在智能缝制新衣...", "渲染超高清画质..."];
     let stepIdx = 0;
     setLoadingStep(progressSteps[stepIdx]);
 
     const interval = setInterval(() => {
-      stepIdx = Math.min(stepIdx + 1, progressSteps.length - 1);
-      setLoadingStep(progressSteps[stepIdx]);
-    }, 4000); // 缩短跳动时间，给人感觉更快
+      if (stepIdx < progressSteps.length - 1) {
+        stepIdx++;
+        setLoadingStep(progressSteps[stepIdx]);
+      }
+    }, 4500); 
 
     try {
-      // 传入固定值 "Studio" 作为背景，后端逻辑中我们已将其锁定为白底
+      // 调用我们在 gemini.ts 中锁定的白底 Studio 模式
       const res = await generateFitting(engine, assets.pet, activeProduct.description, "Studio");
       
       if (res) {
         setAssets(prev => ({ ...prev, result: res }));
       } else {
-        throw new Error("AI 未返回图片结果");
+        throw new Error("AI 未返回图片结果，请检查 API Key 余额");
       }
     } catch (e: any) {
       console.error("Fitting Error:", e);
-      setErrorMsg(e.message || "渲染失败，请重试");
+      setErrorMsg(e.message || "渲染超时，请尝试换一张背景简单的图片");
     } finally {
       clearInterval(interval);
       setLoading(false);
@@ -137,7 +146,7 @@ export default function App() {
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
-          {/* Step 1: Model */}
+          {/* Step 1: Model Selection */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Step 1: Pet Model</h2>
@@ -163,7 +172,7 @@ export default function App() {
             </div>
           </section>
 
-          {/* Step 2: Apparel */}
+          {/* Step 2: Apparel Selection */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
             <h2 className="text-xs font-black mb-5 uppercase tracking-widest text-zinc-400">Step 2: Apparel</h2>
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
