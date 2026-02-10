@@ -8,6 +8,18 @@ const FAL_KEY = import.meta.env.VITE_FAL_KEY;
 const DOUBAO_API_KEY = import.meta.env.VITE_DOUBAO_API_KEY;
 
 /**
+ * 调试辅助：在控制台打印带时间的步骤日志
+ */
+const logStep = (stepName: string, startTime: number) => {
+  const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+  console.log(
+    `%c[AI TIMING] ${stepName}: ${duration}s`, 
+    "color: #ea580c; font-weight: bold; background: #fff3e0; padding: 2px 5px; border-radius: 4px;"
+  );
+  return performance.now(); // 返回当前时间作为下一步的起点
+};
+
+/**
  * 辅助函数：将 URL 转换为 Gemini 接受的 Base64 格式
  */
 const getGeminiImageData = async (source: string): Promise<{ data: string; mimeType: string }> => {
@@ -23,9 +35,9 @@ const getGeminiImageData = async (source: string): Promise<{ data: string; mimeT
 
 /**
  * 内部函数：使用 SAM 自动生成宠物身体掩码 (Mask)
- * 这是实现“长相不变”的核心：只对身体区域进行重绘
  */
 async function generatePetMask(imageUrl: string): Promise<string> {
+  const start = performance.now();
   fal.config({ credentials: FAL_KEY });
   
   try {
@@ -33,42 +45,46 @@ async function generatePetMask(imageUrl: string): Promise<string> {
       input: {
         image_url: imageUrl,
         selection_type: "text",
-        // 精准定位：只选择躯干和服装区域，避开头部
         text_prompt: "the body of the animal, the torso, the clothing area", 
       }
     });
     
     const maskUrl = result?.masks?.[0]?.url;
     if (!maskUrl) throw new Error("Mask generation failed");
+    logStep("SAM 遮罩生成完成", start);
     return maskUrl;
   } catch (error) {
     console.error("SAM Error:", error);
-    throw new Error("无法识别宠物身体区域，请检查图片。");
+    throw new Error("无法识别宠物身体区域，请检查图片或 FAL_KEY 余额。");
   }
 }
 
 /**
  * 内部函数：执行 Flux 局部重绘 (Inpainting)
  */
-
-async function executeInpaint(imageUrl: string, maskUrl: string, productDesc: string): Promise<string> {
-  // 强制白底/简约背景的提示词，减少 AI 思考环境的时间
-  const cleanPrompt = `A professional studio product shot of a pet wearing ${productDesc}, standing on a plain solid white background, high quality, realistic.`;
-
-  const result: any = await fal.subscribe("fal-ai/flux/dev/fill", {
-    input: {
-      image_url: imageUrl,
-      mask_url: maskUrl,
-      prompt: cleanPrompt,
-      strength: 0.85, 
-      // 💡 关键提速：将步数降至 15-20，白底图不需要太多细节迭代
-      num_inference_steps: 18, 
-      guidance_scale: 20,
-      // 这里的尺寸可以根据原图比例微调，保持默认即可
-    }
-  });
+async function executeInpaint(imageUrl: string, maskUrl: string, prompt: string): Promise<string> {
+  const start = performance.now();
   
-  return result?.images?.[0]?.url || "";
+  // 核心优化：锁定白底，降低步数至 18 步以提速
+  try {
+    const result: any = await fal.subscribe("fal-ai/flux/dev/fill", {
+      input: {
+        image_url: imageUrl,
+        mask_url: maskUrl,
+        prompt: `${prompt}, professional studio product shot, plain solid white background, high quality, realistic`,
+        strength: 0.85, 
+        num_inference_steps: 18, 
+        guidance_scale: 25,
+        enable_safety_checker: false // 关闭安全检查可节省约 2-3 秒
+      }
+    });
+    
+    logStep("Flux 局部重绘渲染完成", start);
+    return result?.images?.[0]?.url || "";
+  } catch (error) {
+    console.error("Flux Error:", error);
+    throw new Error("Flux 渲染超时，可能是 Base64 图片过大或服务端拥堵。");
+  }
 }
 
 /**
@@ -80,9 +96,13 @@ export const generateFitting = async (
   description: string,
   style: string = 'Studio'
 ): Promise<string> => {
-  
-  // --- 1. 豆包逻辑 (原生生图) ---
+  const totalStart = performance.now();
+  console.clear();
+  console.log("%c🚀 开始 AI 试衣任务...", "color: #fff; background: #ea580c; padding: 4px 10px; border-radius: 5px;");
+
+  // --- 1. 豆包逻辑 (原生生图 - 无法保持长相) ---
   if (engine === 'doubao') {
+    const dbStart = performance.now();
     const openai = new OpenAI({
       apiKey: DOUBAO_API_KEY,
       baseURL: "https://ark.cn-beijing.volces.com/api/v3",
@@ -91,51 +111,61 @@ export const generateFitting = async (
 
     const response = await openai.images.generate({
       model: "doubao-seedream-4-5-251128",
-      prompt: `Professional pet photography. A pet wearing ${description}. Background: ${style}. Photorealistic, 8k.`,
+      prompt: `Professional pet photography. A pet wearing ${description}. Solid white background. Photorealistic, 8k.`,
     });
+    logStep("豆包生成完成 (注意：不保持原图长相)", dbStart);
     return response.data[0]?.url || "";
   } 
 
-  // --- 2. Google + Fal 联合逻辑 (真正的局部换装) ---
+  // --- 2. Google + Fal 联合逻辑 (保持长相的最佳方案) ---
   else if (engine === 'google') {
     if (!GEMINI_API_KEY) throw new Error("GOOGLE_AUTH_ERROR");
     
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // A. 同时并行：Gemini 分析图像 + SAM 生成 Mask
-    const [{ data, mimeType }, maskUrl] = await Promise.all([
+    // A. 同时并行：Gemini 图片转换 + SAM 生成 Mask (节省 4-6 秒)
+    const parallelStart = performance.now();
+    const [imgData, maskUrl] = await Promise.all([
       getGeminiImageData(petImageSource),
       generatePetMask(petImageSource)
     ]);
+    logStep("Gemini 预处理 & SAM 遮罩并行阶段", parallelStart);
 
-  // 修改 geminiPrompt 的约束部分
-const geminiPrompt = `
-  Analyze this pet image. 
-  Task: Create a prompt for an inpainting model to replace its body with: "${description}".
-  Identify the breed and fur texture to ensure the new clothing fits naturally.
-  
-  CRITICAL CONSTRAINTS:
-  1. Background MUST be plain solid white (Studio shot).
-  2. The output must focus strictly on the ${description}.
-  3. Keep the animal's head and expression exactly as in the original.
-`;
+    // B. Gemini 语义分析
+    const geminiStart = performance.now();
+    const geminiPrompt = `
+      Analyze this pet image. 
+      Task: Create a prompt for an inpainting model to replace its body with: "${description}".
+      Identify the breed and fur texture to ensure the new clothing fits naturally.
+      
+      CRITICAL CONSTRAINTS:
+      1. Background MUST be plain solid white (Studio shot).
+      2. The output must focus strictly on the ${description}.
+      3. Keep the animal's head and expression exactly as in the original.
+    `;
 
     const result = await model.generateContent([
-      { inlineData: { data, mimeType } },
+      { inlineData: { data: imgData.data, mimeType: imgData.mimeType } },
       { text: geminiPrompt }
     ]);
 
     const optimizedPrompt = result.response.text();
+    logStep("Gemini 语义分析完成", geminiStart);
 
     // C. 执行重绘
-    return await executeInpaint(petImageSource, maskUrl, optimizedPrompt);
+    const finalUrl = await executeInpaint(petImageSource, maskUrl, optimizedPrompt);
+    logStep("✨ 任务总计耗时", totalStart);
+    return finalUrl;
   }
 
-  // --- 3. 纯 Fal 逻辑 ---
+  // --- 3. 纯 Fal 逻辑 (快连方案) ---
   else {
+    const falModeStart = performance.now();
     const maskUrl = await generatePetMask(petImageSource);
-    const basicPrompt = `A professional photo of a pet wearing ${description}, ${style} background, high quality.`;
-    return await executeInpaint(petImageSource, maskUrl, basicPrompt);
+    const basicPrompt = `A professional photo of a pet wearing ${description}, plain white background, high quality.`;
+    const finalUrl = await executeInpaint(petImageSource, maskUrl, basicPrompt);
+    logStep("✨ 任务总计耗时", totalStart);
+    return finalUrl;
   }
 };
