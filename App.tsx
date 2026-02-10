@@ -44,24 +44,37 @@ export default function App() {
   const t = UI_STRINGS[lang];
 
   // --- 产品数据处理 ---
-  const products = PRODUCT_DATA[lang].map(p => {
-    let imageUrl = ASSETS_URLS.happy_raincoat;
-    let externalUrl = `https://www.coupang.com/vp/products/${p.id}`;
+const products = PRODUCT_DATA[lang].map(p => {
+  // 1. 定义映射表：将 ID 映射到对应的图片 Key
+  const imageMap: Record<string, string> = {
+    'happy_series_vton': ASSETS_URLS.happy_raincoat,
+    'ribbed_homewear': ASSETS_URLS.ribbed_homewear,
+    'winter_padding_vest': ASSETS_URLS.winter_vest
+  };
 
-    // 修复图片分配逻辑
-    if (p.id === 'happy_series_vton') {
-      imageUrl = ASSETS_URLS.happy_raincoat;
-      externalUrl = 'https://www.coupang.com/vp/products/9312183755';
-    } else if (p.id === 'ribbed_homewear') {
-      imageUrl = ASSETS_URLS.ribbed_homewear; // 明确指向第二张图
-      externalUrl = 'https://www.coupang.com/vp/products/9312183755';
-    } else if (p.id === 'winter_padding_vest') {
-      imageUrl = ASSETS_URLS.winter_vest; // 指向第三张图
-      externalUrl = 'https://www.coupang.com/vp/products/9325810280?vendorItemId=94606893258';
+  // 2. 优先通过 ID 匹配，如果匹配不到，通过名字中的关键词模糊匹配
+  let imageUrl = imageMap[p.id];
+  
+  if (!imageUrl) {
+    if (p.name.includes('골지') || p.name.includes('Lounge') || p.name.includes('Homewear')) {
+      imageUrl = ASSETS_URLS.ribbed_homewear;
+    } else if (p.name.includes('패딩') || p.name.includes('Winter') || p.name.includes('Vest')) {
+      imageUrl = ASSETS_URLS.winter_vest;
+    } else {
+      imageUrl = ASSETS_URLS.happy_raincoat; // 最终兜底
     }
+  }
 
-    return { ...p, imageUrl, url: externalUrl };
-  });
+  // 3. 链接分配逻辑
+  let externalUrl = `https://www.coupang.com/vp/products/${p.id}`;
+  if (p.id === 'winter_padding_vest') {
+    externalUrl = 'https://www.coupang.com/vp/products/9325810280?vendorItemId=94606893258';
+  } else {
+    externalUrl = 'https://www.coupang.com/vp/products/9312183755';
+  }
+
+  return { ...p, imageUrl, url: externalUrl };
+});
 
   const activeProduct = products.find(p => p.id === selectedProductId) || products[0];
 
