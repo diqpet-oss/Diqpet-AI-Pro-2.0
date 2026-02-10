@@ -109,14 +109,17 @@ export const generateFitting = async (
       generatePetMask(petImageSource)
     ]);
 
-    // B. Gemini 优化 Prompt：提取品种特征并描述新衣服
-    const geminiPrompt = `
-      Analyze this pet image. 
-      Task: Create a prompt for an inpainting model to replace its body with: "${description}".
-      Identify the breed and fur texture to ensure the new clothing fits naturally around the neck and limbs.
-      Original Style: ${style}.
-      Constraint: Ensure the output focuses on the fabric of the ${description} while keeping the head identical.
-    `;
+  // 修改 geminiPrompt 的约束部分
+const geminiPrompt = `
+  Analyze this pet image. 
+  Task: Create a prompt for an inpainting model to replace its body with: "${description}".
+  Identify the breed and fur texture to ensure the new clothing fits naturally.
+  
+  CRITICAL CONSTRAINTS:
+  1. Background MUST be plain solid white (Studio shot).
+  2. The output must focus strictly on the ${description}.
+  3. Keep the animal's head and expression exactly as in the original.
+`;
 
     const result = await model.generateContent([
       { inlineData: { data, mimeType } },
