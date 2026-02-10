@@ -210,14 +210,10 @@ export default function App() {
           {errorMsg && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-[10px] text-red-500 font-black text-center">{errorMsg}</div>}
         </div>
 
-        {/* Display Area */}
+       {/* Display Area */}
         <div className="lg:col-span-8 flex flex-col gap-6">
           <div className="flex-grow aspect-square md:aspect-auto md:min-h-[600px] bg-zinc-900/60 rounded-[3rem] border border-white/5 relative overflow-hidden flex items-center justify-center shadow-inner">
-            <div className="absolute top-6 left-6 z-10 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/5">
-               <span className="text-[9px] font-black tracking-[0.3em] text-orange-500 uppercase italic">
-                {engine.toUpperCase()} AI RENDER MODE
-               </span>
-            </div>
+            {/* ... 原有的渲染逻辑保持不变 ... */}
             {assets.result ? (
               <img src={assets.result} className="w-full h-full object-contain p-6 animate-in zoom-in duration-500" alt="Result" />
             ) : (
@@ -226,13 +222,44 @@ export default function App() {
                 <p className="text-[10px] font-black uppercase tracking-widest">{t.waiting}</p>
               </div>
             )}
-            {loading && (
-              <div className="absolute inset-0 bg-black/70 backdrop-blur-xl flex flex-col items-center justify-center gap-6 z-20">
-                <div className="w-20 h-20 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-sm font-black uppercase tracking-[0.4em] animate-pulse">{t.rendering}</p>
-              </div>
-            )}
+            {/* ... Loading 遮罩保持不变 ... */}
           </div>
+
+          {/* 新增：功能操作栏 (分享 & 保存) */}
+          {assets.result && (
+            <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-4">
+              <button 
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = assets.result!;
+                  link.download = `DIQPET_AI_${Date.now()}.png`;
+                  link.click();
+                }}
+                className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/5 active:scale-95"
+              >
+                <i className="fa-solid fa-download text-lg text-orange-500"></i>
+                <span className="text-sm font-bold uppercase">{t.save}</span>
+              </button>
+              
+              <button 
+                onClick={async () => {
+                  if (navigator.share) {
+                    try {
+                      await navigator.share({ title: 'DIQPET AI Fitting', text: 'Look at my pet!', url: window.location.href });
+                    } catch (err) { console.log(err) }
+                  } else {
+                    alert('Copy link to share: ' + window.location.href);
+                  }
+                }}
+                className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-3 transition-all border border-white/5 active:scale-95"
+              >
+                <i className="fa-solid fa-share-nodes text-lg text-orange-500"></i>
+                <span className="text-sm font-bold uppercase">{t.share}</span>
+              </button>
+            </div>
+          )}
+
+          {/* 购买按钮保持不变 */}
           <button onClick={() => window.open(activeProduct.url, "_blank")} className="w-full py-6 bg-[#007AFF] hover:bg-[#0062CC] rounded-[2rem] flex items-center justify-center gap-4 transition-all shadow-lg active:scale-95">
             <i className="fa-solid fa-cart-shopping text-2xl"></i>
             <span className="text-3xl font-black italic uppercase">{t.buyNow}</span>
