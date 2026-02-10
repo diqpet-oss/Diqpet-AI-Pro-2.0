@@ -9,9 +9,8 @@ const ASSETS_URLS: Record<string, string> = {
   bichon: 'https://www.diqpet.com/products/corgi.jpg',
   golden: 'https://www.diqpet.com/products/bulldog.jpg',
   happy_raincoat: 'https://www.diqpet.com/products/happy_raincoat.jpg',
-  ribbed_homewear: 'https://www.diqpet.com/products/ribbed_homewear.jpg',
-  // 新增产品图片链接
-  winter_vest: 'https://www.diqpet.com/products/winter.jpg', 
+  ribbed_homewear: 'https://www.diqpet.com/products/ribbed_homewear.jpg', // 第二个产品图
+  winter_vest: 'https://www.diqpet.com/products/winter.jpg', // 第三个产品图
 };
 
 const STYLE_OPTIONS = [
@@ -21,6 +20,7 @@ const STYLE_OPTIONS = [
 ];
 
 export default function App() {
+  // --- 状态管理 ---
   const [lang, setLang] = useState<Language>('ko');
   const [selectedBreedId, setSelectedBreedId] = useState('poodle');
   const [selectedProductId, setSelectedProductId] = useState('happy_series_vton');
@@ -29,7 +29,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
-  // 核心修复：持久化自定义图片，切换后不消失
+  // 持久化用户上传的图片
   const [customPetImage, setCustomPetImage] = useState<string | null>(null);
 
   const [assets, setAssets] = useState<ImageAssets>({ 
@@ -38,24 +38,25 @@ export default function App() {
     result: null 
   });
 
-  // 修复：删除重复声明，解决 Build Error
+  // 关键：全局唯一声明，解决 Vercel 构建错误
   const fileInputRef = useRef<HTMLInputElement>(null); 
 
   const t = UI_STRINGS[lang];
 
-  // 动态生成产品列表，包含新增的冬季背心
+  // --- 产品数据处理 ---
   const products = PRODUCT_DATA[lang].map(p => {
     let imageUrl = ASSETS_URLS.happy_raincoat;
     let externalUrl = `https://www.coupang.com/vp/products/${p.id}`;
 
+    // 修复图片分配逻辑
     if (p.id === 'happy_series_vton') {
       imageUrl = ASSETS_URLS.happy_raincoat;
       externalUrl = 'https://www.coupang.com/vp/products/9312183755';
     } else if (p.id === 'ribbed_homewear') {
-      imageUrl = ASSETS_URLS.ribbed_homewear;
-    } else if (p.id === 'winter_padding_vest' || p.name.includes('Padding') || p.name.includes('패딩')) {
-      // 替换为您要求的产品链接与图片
-      imageUrl = ASSETS_URLS.winter_vest;
+      imageUrl = ASSETS_URLS.ribbed_homewear; // 明确指向第二张图
+      externalUrl = 'https://www.coupang.com/vp/products/9312183755';
+    } else if (p.id === 'winter_padding_vest') {
+      imageUrl = ASSETS_URLS.winter_vest; // 指向第三张图
       externalUrl = 'https://www.coupang.com/vp/products/9325810280?vendorItemId=94606893258';
     }
 
@@ -64,13 +65,14 @@ export default function App() {
 
   const activeProduct = products.find(p => p.id === selectedProductId) || products[0];
 
+  // --- 交互逻辑 ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        setCustomPetImage(base64String); // 存入持久化状态
+        setCustomPetImage(base64String); 
         setAssets(prev => ({ ...prev, pet: base64String, result: null }));
         setSelectedBreedId('custom');
       };
@@ -86,10 +88,11 @@ export default function App() {
     setLoading(true);
     setErrorMsg('');
     try {
-      // 修正 API 请求，避免图片中的 404 或 429 错误
       const res = await generateFitting(engine, assets.pet, activeProduct.description, selectedStyle);
       setAssets(prev => ({ ...prev, result: res }));
     } catch (e: any) {
+      console.error(e);
+      // 处理截图中的 404 或限流错误
       setErrorMsg(e.message || "AI Rendering Failed");
     } finally {
       setLoading(false);
@@ -97,10 +100,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-orange-600 p-4 md:p-8">
+    <div className="min-h-screen bg-[#050505] text-white font-sans p-4 md:p-8">
+      {/* Header */}
       <header className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between mb-12 gap-6">
         <div className="flex items-center gap-5">
-          <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-700 rounded-2xl flex items-center justify-center">
+          <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-700 rounded-2xl flex items-center justify-center shadow-2xl">
             <i className="fa-solid fa-wand-magic-sparkles text-2xl"></i>
           </div>
           <div>
@@ -117,11 +121,12 @@ export default function App() {
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
+          
           {/* Step 1: Pet Model */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Step 1: Pet Model</h2>
-              <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-black uppercase bg-white/5 px-4 py-2 rounded-xl border border-white/10 hover:bg-orange-600">
+              <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-black uppercase bg-white/5 px-4 py-2 rounded-xl border border-white/10 hover:bg-orange-600 transition-all">
                 <i className="fa-solid fa-upload mr-2"></i>UPLOAD
               </button>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} hidden accept="image/*" />
@@ -130,50 +135,50 @@ export default function App() {
             <div className="grid grid-cols-4 gap-3">
               {['poodle', 'bichon', 'golden'].map(id => (
                 <button key={id} onClick={() => { setAssets(prev => ({ ...prev, pet: ASSETS_URLS[id], result: null })); setSelectedBreedId(id); }}
-                  className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedBreedId === id ? 'border-orange-600 scale-105' : 'border-transparent opacity-40'}`}>
-                  <img src={ASSETS_URLS[id]} className="w-full h-full object-cover" />
+                  className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedBreedId === id ? 'border-orange-600 scale-105 shadow-lg shadow-orange-600/20' : 'border-transparent opacity-40 hover:opacity-100'}`}>
+                  <img src={ASSETS_URLS[id]} className="w-full h-full object-cover" alt={id} />
                 </button>
               ))}
 
-              {/* 只要上传过图片，这个格子就一直显示 */}
+              {/* 上传后的图片格子，切换后不消失 */}
               {customPetImage && (
                 <button onClick={() => { setAssets(prev => ({ ...prev, pet: customPetImage, result: null })); setSelectedBreedId('custom'); }}
-                  className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all relative ${selectedBreedId === 'custom' ? 'border-orange-600 scale-105' : 'border-transparent opacity-40'}`}>
-                  <img src={customPetImage} className="w-full h-full object-cover" />
+                  className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all relative ${selectedBreedId === 'custom' ? 'border-orange-600 scale-105' : 'border-transparent opacity-40 hover:opacity-100'}`}>
+                  <img src={customPetImage} className="w-full h-full object-cover" alt="Custom upload" />
                   <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    <span className="text-[8px] font-bold text-white bg-orange-600 px-1 rounded">READY</span>
+                    <span className="text-[8px] font-bold text-white bg-orange-600 px-1 rounded shadow-sm">READY</span>
                   </div>
                 </button>
               )}
             </div>
           </section>
 
-          {/* Step 2: Apparel */}
+          {/* Step 2: Apparel - 已修复图片重复问题 */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
             <h2 className="text-xs font-black mb-5 uppercase tracking-widest text-zinc-400">Step 2: Apparel</h2>
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
               {products.map(p => (
                 <button key={p.id} onClick={() => { setSelectedProductId(p.id); setAssets(prev => ({ ...prev, clothing: p.imageUrl, result: null })); }}
-                  className={`w-full flex items-center gap-4 p-3 rounded-[1.5rem] border transition-all ${selectedProductId === p.id ? 'bg-orange-600/20 border-orange-600/50' : 'bg-white/5 border-transparent'}`}>
-                  <img src={p.imageUrl} className="w-12 h-12 rounded-xl object-cover" />
+                  className={`w-full flex items-center gap-4 p-3 rounded-[1.5rem] border transition-all ${selectedProductId === p.id ? 'bg-orange-600/20 border-orange-600/50' : 'bg-white/5 border-transparent hover:border-white/10'}`}>
+                  <img src={p.imageUrl} className="w-12 h-12 rounded-xl object-cover" alt={p.name} />
                   <div className="text-left"><p className="text-[10px] font-bold text-zinc-100 leading-tight">{p.name}</p></div>
                 </button>
               ))}
             </div>
           </section>
 
-          {/* AI Config & Generate */}
+          {/* AI Config */}
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-2">
               {['google', 'doubao', 'fal'].map((id) => (
-                <button key={id} onClick={() => setEngine(id as any)} className={`py-3 rounded-2xl border-2 text-[10px] font-black transition-all ${engine === id ? 'border-orange-600 bg-orange-600/10' : 'border-white/5'}`}>
+                <button key={id} onClick={() => setEngine(id as any)} className={`py-3 rounded-2xl border-2 text-[10px] font-black transition-all ${engine === id ? 'border-orange-600 bg-orange-600/10' : 'border-white/5 bg-zinc-900'}`}>
                   {id.toUpperCase()}
                 </button>
               ))}
             </div>
             <div className="grid grid-cols-3 gap-2">
               {STYLE_OPTIONS.map((s) => (
-                <button key={s.id} onClick={() => setSelectedStyle(s.id)} className={`py-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${selectedStyle === s.id ? 'bg-white text-black' : 'bg-white/5 text-zinc-500'}`}>
+                <button key={s.id} onClick={() => setSelectedStyle(s.id)} className={`py-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${selectedStyle === s.id ? 'bg-white text-black' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'}`}>
                   <i className={`fa-solid ${s.icon} text-xs`}></i>
                   <span className="text-[8px] font-black uppercase">{s.name[lang as 'zh' | 'ko' | 'en'] || s.id}</span>
                 </button>
@@ -185,6 +190,7 @@ export default function App() {
             <i className={`fa-solid ${loading ? 'fa-spinner animate-spin' : 'fa-wand-magic-sparkles'} text-xl`}></i>
             <span className="text-xl font-black italic uppercase">{loading ? t.rendering : t.generate}</span>
           </button>
+          
           {errorMsg && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-[10px] text-red-500 font-black text-center">{errorMsg}</div>}
         </div>
 
@@ -192,22 +198,22 @@ export default function App() {
         <div className="lg:col-span-8 flex flex-col gap-6">
           <div className="flex-grow aspect-square md:aspect-auto md:min-h-[600px] bg-zinc-900/60 rounded-[3rem] border border-white/5 relative overflow-hidden flex items-center justify-center shadow-inner">
             <div className="absolute top-6 left-6 z-10 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/5">
-               <span className="text-[9px] font-black text-orange-500 uppercase italic">
+               <span className="text-[9px] font-black tracking-[0.3em] text-orange-500 uppercase italic">
                 {engine.toUpperCase()} AI RENDER MODE
                </span>
             </div>
             {assets.result ? (
-              <img src={assets.result} className="w-full h-full object-contain p-6 animate-in zoom-in duration-500" />
+              <img src={assets.result} className="w-full h-full object-contain p-6 animate-in zoom-in duration-500" alt="Result" />
             ) : (
               <div className="text-zinc-800 flex flex-col items-center gap-4">
                 <i className="fa-solid fa-dog text-[120px] opacity-10"></i>
-                <p className="text-[10px] font-black uppercase">{t.waiting}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest">{t.waiting}</p>
               </div>
             )}
             {loading && (
               <div className="absolute inset-0 bg-black/70 backdrop-blur-xl flex flex-col items-center justify-center gap-6 z-20">
                 <div className="w-20 h-20 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-sm font-black uppercase tracking-[0.4em]">{t.rendering}</p>
+                <p className="text-sm font-black uppercase tracking-[0.4em] animate-pulse">{t.rendering}</p>
               </div>
             )}
           </div>
