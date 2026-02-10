@@ -18,7 +18,6 @@ const STYLE_OPTIONS = [
 ];
 
 export default function App() {
-  // --- 状态定义区域 ---
   const [lang, setLang] = useState<Language>('ko');
   const [selectedBreedId, setSelectedBreedId] = useState('poodle');
   const [selectedProductId, setSelectedProductId] = useState('happy_series_vton');
@@ -27,34 +26,33 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
+  // 新增：专门存储上传的图片，防止切换后消失
+  const [customPetImage, setCustomPetImage] = useState<string | null>(null);
+
   const [assets, setAssets] = useState<ImageAssets>({ 
     pet: ASSETS_URLS.poodle, 
     clothing: ASSETS_URLS.happy_raincoat, 
     result: null 
   });
 
-  // 关键修复：全局只保留这一个定义，删除下方重复的声明
+  // 修复：全局唯一声明
   const fileInputRef = useRef<HTMLInputElement>(null); 
 
-  // --- 逻辑计算区域 ---
   const t = UI_STRINGS[lang];
-
   const products = PRODUCT_DATA[lang].map(p => ({
     ...p,
     imageUrl: p.id === 'happy_series_vton' ? ASSETS_URLS.happy_raincoat : ASSETS_URLS.ribbed_homewear,
     url: `https://www.coupang.com/vp/products/${p.id === 'happy_series_vton' ? '9312183755' : p.id}`
   }));
-
   const activeProduct = products.find(p => p.id === selectedProductId) || products[0];
 
-  // --- 处理函数 ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        // 更新预览并标记为自定义
+        setCustomPetImage(base64String); // 永久保存上传图
         setAssets(prev => ({ ...prev, pet: base64String, result: null }));
         setSelectedBreedId('custom');
       };
@@ -70,16 +68,10 @@ export default function App() {
     setLoading(true);
     setErrorMsg('');
     try {
-      // 传递四个参数，匹配重构后的后端逻辑
       const res = await generateFitting(engine, assets.pet, activeProduct.description, selectedStyle);
       setAssets(prev => ({ ...prev, result: res }));
     } catch (e: any) {
-      console.error(e);
-      if (e.message === "GOOGLE_AUTH_ERROR") {
-        setErrorMsg("Google API Key 验证失败，请检查环境变量配置");
-      } else {
-        setErrorMsg(e.message || "AI Rendering Failed");
-      }
+      setErrorMsg(e.message || "AI Rendering Failed");
     } finally {
       setLoading(false);
     }
@@ -87,7 +79,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-orange-600 p-4 md:p-8">
-      {/* Header */}
       <header className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between mb-12 gap-6">
         <div className="flex items-center gap-5">
           <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-700 rounded-2xl flex items-center justify-center shadow-2xl">
@@ -98,7 +89,6 @@ export default function App() {
             <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Next-Gen Virtual Fitting</p>
           </div>
         </div>
-        
         <div className="flex gap-2 bg-zinc-900/80 p-1.5 rounded-2xl border border-white/5">
           {LANGUAGES.map(l => (
             <button key={l.code} onClick={() => setLang(l.code as Language)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${lang === l.code ? 'bg-orange-600' : 'text-zinc-500 hover:text-white'}`}>{l.name}</button>
@@ -109,7 +99,7 @@ export default function App() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
           
-          {/* Step 1: Pet Model */}
+          {/* Step 1: Pet Model - 修复切换消失问题 */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Step 1: Pet Model</h2>
@@ -117,7 +107,7 @@ export default function App() {
                 onClick={() => fileInputRef.current?.click()}
                 className="text-[10px] font-black uppercase bg-white/5 px-4 py-2 rounded-xl border border-white/10 hover:bg-orange-600 transition-all"
               >
-                <i className="fa-solid fa-upload mr-2"></i>UPLOAD
+                <i className="fa-solid fa-upload mr-2"></i>{customPetImage ? 'RE-UPLOAD' : 'UPLOAD'}
               </button>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} hidden accept="image/*" />
             </div>
@@ -136,18 +126,25 @@ export default function App() {
                 </button>
               ))}
 
-              {selectedBreedId === 'custom' && (
-                <div className="aspect-square rounded-2xl overflow-hidden border-2 border-orange-600 scale-105 relative">
-                  <img src={assets.pet} className="w-full h-full object-cover" alt="Custom upload" />
-                  <div className="absolute inset-0 bg-orange-600/20 flex items-center justify-center">
-                    <span className="text-[8px] font-bold">READY</span>
+              {/* 核心修复：只要上传过图片，第四个格子就一直显示，即使当前选中了别的狗 */}
+              {customPetImage && (
+                <button 
+                  onClick={() => {
+                    setAssets(prev => ({ ...prev, pet: customPetImage, result: null }));
+                    setSelectedBreedId('custom');
+                  }}
+                  className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all relative ${selectedBreedId === 'custom' ? 'border-orange-600 scale-105 shadow-lg shadow-orange-600/20' : 'border-transparent opacity-40 hover:opacity-100'}`}
+                >
+                  <img src={customPetImage} className="w-full h-full object-cover" alt="Custom" />
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                    <span className="text-[8px] font-bold text-white bg-orange-600 px-1 rounded">READY</span>
                   </div>
-                </div>
+                </button>
               )}
             </div>
           </section>
 
-          {/* Step 2: Apparel */}
+          {/* 其余部分保持一致... */}
           <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
             <h2 className="text-xs font-black mb-5 uppercase tracking-widest text-zinc-400">Step 2: Apparel</h2>
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
@@ -161,9 +158,7 @@ export default function App() {
             </div>
           </section>
 
-          {/* Engine & Style */}
           <div className="space-y-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-2">AI Engine & Style</p>
             <div className="grid grid-cols-3 gap-2">
               {['google', 'doubao', 'fal'].map((id) => (
                 <button key={id} onClick={() => setEngine(id as any)} className={`py-3 rounded-2xl border-2 text-[10px] font-black uppercase transition-all ${engine === id ? 'border-orange-600 bg-orange-600/10' : 'border-white/5 bg-zinc-900 hover:border-white/20'}`}>
@@ -185,11 +180,9 @@ export default function App() {
             <i className={`fa-solid ${loading ? 'fa-spinner animate-spin' : 'fa-wand-magic-sparkles'} text-xl`}></i>
             <span className="text-xl font-black italic uppercase">{loading ? t.rendering : t.generate}</span>
           </button>
-          
           {errorMsg && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-[10px] text-red-500 font-black uppercase text-center">{errorMsg}</div>}
         </div>
 
-        {/* Right Side Display */}
         <div className="lg:col-span-8 flex flex-col gap-6">
           <div className="flex-grow aspect-square md:aspect-auto md:min-h-[600px] bg-zinc-900/60 rounded-[3rem] border border-white/5 relative overflow-hidden flex items-center justify-center shadow-inner">
             <div className="absolute top-6 left-6 z-10 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/5">
@@ -197,7 +190,6 @@ export default function App() {
                 {engine.toUpperCase()} AI RENDER MODE
                </span>
             </div>
-            
             {assets.result ? (
               <img src={assets.result} className="w-full h-full object-contain p-6 animate-in zoom-in duration-500" alt="Result" />
             ) : (
@@ -206,7 +198,6 @@ export default function App() {
                 <p className="text-[10px] font-black uppercase tracking-widest">{t.waiting}</p>
               </div>
             )}
-
             {loading && (
               <div className="absolute inset-0 bg-black/70 backdrop-blur-xl flex flex-col items-center justify-center gap-6 z-20">
                 <div className="w-20 h-20 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
@@ -214,13 +205,10 @@ export default function App() {
               </div>
             )}
           </div>
-
-          <div className="flex gap-4">
-            <button onClick={() => window.open(activeProduct.url, "_blank")} className="flex-grow py-6 bg-[#007AFF] hover:bg-[#0062CC] rounded-[2rem] flex items-center justify-center gap-4 transition-all shadow-lg active:scale-95">
-              <i className="fa-solid fa-cart-shopping text-2xl"></i>
-              <span className="text-3xl font-black italic uppercase">{t.buyNow}</span>
-            </button>
-          </div>
+          <button onClick={() => window.open(activeProduct.url, "_blank")} className="w-full py-6 bg-[#007AFF] hover:bg-[#0062CC] rounded-[2rem] flex items-center justify-center gap-4 transition-all shadow-lg active:scale-95">
+            <i className="fa-solid fa-cart-shopping text-2xl"></i>
+            <span className="text-3xl font-black italic uppercase">{t.buyNow}</span>
+          </button>
         </div>
       </div>
     </div>
