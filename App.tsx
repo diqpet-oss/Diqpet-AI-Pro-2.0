@@ -68,7 +68,7 @@ export default function App() {
     }
   };
 
-  const handleGenerate = async () => {
+const handleGenerate = async () => {
     if (!assets.pet) {
       setErrorMsg(t.petNotSelected);
       return;
@@ -76,22 +76,37 @@ export default function App() {
 
     setLoading(true);
     setErrorMsg('');
-    // 根据引擎设置不同的进度提示
-    setLoadingStep(engine === 'google' ? 'Gemini Analyzing & SAM Masking...' : 'Generating Mask...');
+    
+    // --- 优化后的进度反馈逻辑 ---
+    const progressSteps = engine === 'google' 
+      ? ["Step 1: Gemini 正在识别宠物特征...", "Step 2: SAM 正在锁定身体位置...", "Step 3: Flux 正在缝制新衣服..."]
+      : ["Step 1: 正在生成智能掩码...", "Step 2: 正在重绘宠物服饰..."];
+
+    let stepIdx = 0;
+    setLoadingStep(progressSteps[stepIdx]);
+
+    // 模拟进度条自动跳动 (因为 API 内部状态无法实时传回，我们根据经验时间跳动)
+    const interval = setInterval(() => {
+      if (stepIdx < progressSteps.length - 1) {
+        stepIdx++;
+        setLoadingStep(progressSteps[stepIdx]);
+      }
+    }, 6000); // 每 6 秒尝试跳到下一步
 
     try {
-      // 调用重构后的 gemini.ts，它内部会自动处理 SAM 和 Flux Fill
+      // 真正执行任务的代码 (不能删！)
       const res = await generateFitting(engine, assets.pet, activeProduct.description, selectedStyle);
       
       if (res) {
         setAssets(prev => ({ ...prev, result: res }));
       } else {
-        throw new Error("No image returned from AI");
+        throw new Error("AI 未返回图片结果");
       }
     } catch (e: any) {
       console.error("Fitting Error:", e);
-      setErrorMsg(e.message || "AI Rendering Failed. Please try again.");
+      setErrorMsg(e.message || "渲染失败，请重试");
     } finally {
+      clearInterval(interval); // 清除定时器
       setLoading(false);
       setLoadingStep('');
     }
