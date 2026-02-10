@@ -2,8 +2,72 @@ import OpenAI from "openai";
 import { fal } from "@fal-ai/client";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// ... 原有的环境变量和辅助函数保持不变 ...
+// 环境变量获取
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const FAL_KEY = import.meta.env.VITE_FAL_KEY;
+const DOUBAO_API_KEY = import.meta.env.VITE_DOUBAO_API_KEY;
 
+/**
+ * 辅助函数：将 URL 转换为 Gemini 接受的 Base64 格式
+ */
+const getGeminiImageData = async (source: string): Promise<{ data: string; mimeType: string }> => {
+  const res = await fetch(source);
+  const blob = await res.blob();
+  const base64 = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+  return { data: base64, mimeType: blob.type || 'image/jpeg' };
+};
+
+/**
+ * 内部函数：使用 SAM 自动生成宠物身体掩码 (Mask)
+ * 这是实现“长相不变”的核心：只对身体区域进行重绘
+ */
+async function generatePetMask(imageUrl: string): Promise<string> {
+  fal.config({ credentials: FAL_KEY });
+  
+  try {
+    const result: any = await fal.subscribe("fal-ai/sam", {
+      input: {
+        image_url: imageUrl,
+        selection_type: "text",
+        // 精准定位：只选择躯干和服装区域，避开头部
+        text_prompt: "the body of the animal, the torso, the clothing area", 
+      }
+    });
+    
+    const maskUrl = result?.masks?.[0]?.url;
+    if (!maskUrl) throw new Error("Mask generation failed");
+    return maskUrl;
+  } catch (error) {
+    console.error("SAM Error:", error);
+    throw new Error("无法识别宠物身体区域，请检查图片。");
+  }
+}
+
+/**
+ * 内部函数：执行 Flux 局部重绘 (Inpainting)
+ */
+async function executeInpaint(imageUrl: string, maskUrl: string, prompt: string): Promise<string> {
+  const result: any = await fal.subscribe("fal-ai/flux/dev/fill", {
+    input: {
+      image_url: imageUrl,
+      mask_url: maskUrl,
+      prompt: prompt,
+      strength: 0.95,      // 区域内重绘强度
+      guidance_scale: 30,  // 提示词服从度
+      num_inference_steps: 40,
+    }
+  });
+  
+  return result?.images?.[0]?.url || "";
+}
+
+/**
+ * 主导出函数：AI 试衣间入口
+ */
 export const generateFitting = async (
   engine: 'doubao' | 'fal' | 'google', 
   petImageSource: string,
@@ -11,96 +75,58 @@ export const generateFitting = async (
   style: string = 'Studio'
 ): Promise<string> => {
   
-  // --- 1. 豆包逻辑 (保持原样，因为豆包 API 目前对 Inpainting 的封装较闭塞) ---
+  // --- 1. 豆包逻辑 (原生生图) ---
   if (engine === 'doubao') {
-    // ... 原有逻辑 ...
+    const openai = new OpenAI({
+      apiKey: DOUBAO_API_KEY,
+      baseURL: "https://ark.cn-beijing.volces.com/api/v3",
+      dangerouslyAllowBrowser: true 
+    });
+
+    const response = await openai.images.generate({
+      model: "doubao-seedream-4-5-251128",
+      prompt: `Professional pet photography. A pet wearing ${description}. Background: ${style}. Photorealistic, 8k.`,
+    });
+    return response.data[0]?.url || "";
   } 
 
-  // --- 2. Google + Fal 联合逻辑 (最高质量方案) ---
+  // --- 2. Google + Fal 联合逻辑 (真正的局部换装) ---
   else if (engine === 'google') {
     if (!GEMINI_API_KEY) throw new Error("GOOGLE_AUTH_ERROR");
+    
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    try {
-      const { data, mimeType } = await getGeminiImageData(petImageSource);
-      
-      // 让 Gemini 生成一个极其精准的描述，重点在于“保留头部，重绘身体”
-      const prompt = `
-        Context: I'm doing an AI pet try-on. 
-        Pet Image Analysis: Describe the pet's breed, fur texture, and color in detail.
-        Task: Create a prompt for an Inpainting model to replace the pet's body clothing with: "${description}".
-        Instruction: Explicitly state that the head, eyes, and facial features must remain IDENTICAL to the original. 
-        Focus on the fabric texture of the ${description} and ${style} background.
-      `;
+    // A. 同时并行：Gemini 分析图像 + SAM 生成 Mask
+    const [{ data, mimeType }, maskUrl] = await Promise.all([
+      getGeminiImageData(petImageSource),
+      generatePetMask(petImageSource)
+    ]);
 
-      const result = await model.generateContent([
-        { inlineData: { data, mimeType } },
-        { text: prompt }
-      ]);
+    // B. Gemini 优化 Prompt：提取品种特征并描述新衣服
+    const geminiPrompt = `
+      Analyze this pet image. 
+      Task: Create a prompt for an inpainting model to replace its body with: "${description}".
+      Identify the breed and fur texture to ensure the new clothing fits naturally around the neck and limbs.
+      Original Style: ${style}.
+      Constraint: Ensure the output focuses on the fabric of the ${description} while keeping the head identical.
+    `;
 
-      const optimizedPrompt = (await result.response).text();
-      
-      // 核心改变：调用 Fal 的 Inpainting 逻辑
-      return await executeFalInpaint(petImageSource, optimizedPrompt);
-      
-    } catch (error: any) {
-      // ... 错误处理 ...
-    }
+    const result = await model.generateContent([
+      { inlineData: { data, mimeType } },
+      { text: geminiPrompt }
+    ]);
+
+    const optimizedPrompt = result.response.text();
+
+    // C. 执行重绘
+    return await executeInpaint(petImageSource, maskUrl, optimizedPrompt);
   }
 
-  // --- 3. 直接调用 Fal 逻辑 ---
+  // --- 3. 纯 Fal 逻辑 ---
   else {
-    return await executeFalInpaint(petImageSource, `A professional pet photo, wearing ${description}, ${style} background, highly detailed.`);
+    const maskUrl = await generatePetMask(petImageSource);
+    const basicPrompt = `A professional photo of a pet wearing ${description}, ${style} background, high quality.`;
+    return await executeInpaint(petImageSource, maskUrl, basicPrompt);
   }
 };
-
-/**
- * 核心：执行局部重绘逻辑
- * 使用 Fal.ai 的 Flux Fill 模型实现真正的身份保持
- */
-async function executeFalInpaint(imageUrl: string, prompt: string): Promise<string> {
-  fal.config({ credentials: FAL_KEY });
-
-  try {
-    // 第一步：自动生成 Mask (使用 Segment Anything)
-    // 注意：这里假设使用 fal-ai/sam 或者是 Flux Fill 自带的自动掩码功能
-    // 为了代码简洁，我们直接调用支持 Auto-Mask 或传入特定 Mask 的模型
-    
-    const result: any = await fal.subscribe("fal-ai/flux/dev/fill", {
-      input: {
-        image_url: imageUrl,
-        prompt: prompt,
-        // 关键：我们需要告诉 AI 哪里是需要改变的。
-        // 如果没有手动 Mask，Flux Fill 也可以根据 Prompt 尝试识别，
-        // 但最稳妥是配合一个生成的 mask_url。
-        // 这里演示 Flux Fill 的标准用法：
-        mask_url: await generatePetBodyMask(imageUrl), 
-        strength: 0.95, // 在 Mask 区域内，我们可以放心调高强度
-        guidance_scale: 3.5,
-        num_inference_steps: 30,
-      }
-    });
-
-    return result?.images?.[0]?.url || "";
-  } catch (err: any) {
-    throw new Error(`局部重绘失败: ${err.message}`);
-  }
-}
-
-/**
- * 辅助：使用 SAM (Segment Anything) 自动提取宠物身体作为 Mask
- */
-async function generatePetBodyMask(targetImageUrl: string): Promise<string> {
-  // 调用 Fal 的 Segment Anything 模型
-  // 逻辑：识别 "the body of the animal excluding the head"
-  const samResult: any = await fal.subscribe("fal-ai/sam", {
-    input: {
-      image_url: targetImageUrl,
-      selection_type: "text",
-      text_prompt: "the body of the animal, clothing area", // 避开 head
-    }
-  });
-  
-  return samResult?.masks?.[0]?.url || ""; 
-}
