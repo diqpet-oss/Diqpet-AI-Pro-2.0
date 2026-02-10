@@ -37,11 +37,11 @@ export const generateFitting = async (
 // 找到这一行：
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-// 修改为（添加 apiVersion 参数）：
+// 替换为（明确指定 apiVersion）:
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const model = genAI.getGenerativeModel(
   { model: "gemini-1.5-flash" },
-  { apiVersion: "v1" } // 强制指定 v1 版本
+  { apiVersion: "v1" } // 强制指定 v1 版本，不再走 v1beta
 );
     
     // 注意：Gemini 1.5 主要返回文本描述。
