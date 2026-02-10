@@ -34,8 +34,7 @@ export const generateFitting = async (
   if (engine === 'google') {
     if (!GEMINI_API_KEY) throw new Error("VITE_GEMINI_API_KEY is not set in Vercel.");
     
-// 找到这一行：
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+
 
 // 替换为（明确指定 apiVersion）:
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
