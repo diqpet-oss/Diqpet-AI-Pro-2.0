@@ -10,8 +10,8 @@ import { Language, LANGUAGES, UI_STRINGS, PRODUCT_DATA } from './translations.ts
  */
 const ASSETS_URLS: Record<string, string> = {
   // Pet Models (Real breed photography)
-  poodle: 'https://images.unsplash.com/photo-1591768575198-88dac53fbd0a?auto=format&fit=crop&q=80&w=600',
-  bichon: 'https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&q=80&w=600',
+  poodle: 'https://www.diqpet.com/products/golden_retriever.jpg',
+  bichon: 'https://www.diqpet.com/products/corgi.jpg',
   golden: 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=600',
   // Product Placeholders
   happy_raincoat: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&q=80&w=600',
