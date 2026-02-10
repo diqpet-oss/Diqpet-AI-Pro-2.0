@@ -12,11 +12,11 @@ const ASSETS_URLS: Record<string, string> = {
   // Pet Models (Real breed photography)
   poodle: 'https://www.diqpet.com/products/golden_retriever.jpg',
   bichon: 'https://www.diqpet.com/products/corgi.jpg',
-  golden: 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=600',
+  golden: 'https://www.diqpet.com/products/bulldog.jpg',
   // Product Placeholders
-  happy_raincoat: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&q=80&w=600',
-  ribbed_homewear: 'https://images.unsplash.com/photo-1541591490109-b9f10712a670?auto=format&fit=crop&q=80&w=600',
-  v3_puffer: 'https://images.unsplash.com/photo-1537151608827-44670c107312?auto=format&fit=crop&q=80&w=600',
+  happy_raincoat: 'https://www.diqpet.com/products/happy_raincoat.jpg',
+  ribbed_homewear: 'https://www.diqpet.com/products/ribbed_homewear.jpg',
+
 };
 
 export default function App() {
