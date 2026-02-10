@@ -45,28 +45,28 @@ export default function App() {
 
   // --- 产品数据处理 ---
 // --- 产品数据处理 (已根据 translations.ts 修正 ID) ---
-const products = PRODUCT_DATA[lang].map(p => {
-  // 定义映射表：直接使用你 translations.ts 里的真实 ID
-  const imageMap: Record<string, string> = {
-    'happy_series_vton': ASSETS_URLS.happy_raincoat, // 雨衣
-    '9286790289': ASSETS_URLS.ribbed_homewear,       // 家居服 (之前是 ribbed_homewear)
-    'v3_puffer': ASSETS_URLS.winter_vest            // 羽绒服 (之前是 winter_padding_vest)
-  };
+// --- 产品数据处理 ---
+  const products = PRODUCT_DATA[lang].map(p => {
+    // 1. 定义映射表：根据你的 translations.ts 里的 ID 映射图片
+    const imageMap: Record<string, string> = {
+      'happy_series_vton': ASSETS_URLS.happy_raincoat, // 对应第一个：冲锋衣
+      '9286790289': ASSETS_URLS.ribbed_homewear,       // 对应第二个：家居服
+      'v3_puffer': ASSETS_URLS.winter_vest             // 对应第三个：保暖衣
+    };
 
-  // 1. 获取图片 URL
-  let imageUrl = imageMap[p.id];
-  
-  // 2. 兜底逻辑：如果 ID 变了，通过名字包含的关键字来猜
-  if (!imageUrl) {
-    if (p.name.includes('골지') || p.name.includes('螺纹') || p.name.includes('Ribbed')) {
-      imageUrl = ASSETS_URLS.ribbed_homewear;
-    } else if (p.name.includes('패딩') || p.name.includes('羽绒') || p.name.includes('Puffer')) {
-      imageUrl = ASSETS_URLS.winter_vest;
-    } else {
-      imageUrl = ASSETS_URLS.happy_raincoat;
+    // 2. 匹配图片 URL
+    let imageUrl = imageMap[p.id];
+    
+    // 3. 兜底逻辑：如果 ID 匹配不到，通过名称关键词模糊匹配（防止 ID 变更）
+    if (!imageUrl) {
+      if (p.name.includes('家居服') || p.name.includes('홈웨어') || p.name.includes('Loungewear')) {
+        imageUrl = ASSETS_URLS.ribbed_homewear;
+      } else if (p.name.includes('保暖衣') || p.name.includes('방한복') || p.name.includes('Thermal')) {
+        imageUrl = ASSETS_URLS.winter_vest;
+      } else {
+        imageUrl = ASSETS_URLS.happy_raincoat; // 默认显示第一个
+      }
     }
-  }
-
   // 3. 链接分配逻辑 (同样根据真实 ID 修正)
   let externalUrl = 'https://www.coupang.com/vp/products/9312183755'; // 默认雨衣链接
   
