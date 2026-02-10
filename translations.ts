@@ -200,9 +200,9 @@ export const UI_STRINGS: Record<Language, any> = {
 
 export const PRODUCT_DATA: Record<Language, any[]> = {
   ko: [
-    { id: 'happy_series_vton', name: 'DIQPET 冲锋衣 (바람막이)', description: '기능성 소재의 패치워크 디자인으로 활동성이 뛰어난 강아지 전용 바람막이입니다.' },
-    { id: '9286790289', name: 'DIQPET 家居服 (홈웨어)', description: '부드러운 골지 원단으로 실내에서 편안하게 착용 가능한 데일리 홈웨어입니다.' },
-    { id: 'v3_puffer', name: 'DIQPET 保暖衣 (방한복)', description: '추운 겨울에도 체온을 유지해주는 고성능 패딩 스타일의 보온 의류입니다.' },
+    { id: 'happy_series_vton', name: 'DIQPET 바람막이', description: '기능성 소재의 패치워크 디자인으로 활동성이 뛰어난 강아지 전용 바람막이입니다.' },
+    { id: '9286790289', name: 'DIQPET 홈웨어', description: '부드러운 골지 원단으로 실내에서 편안하게 착용 가능한 데일리 홈웨어입니다.' },
+    { id: 'v3_puffer', name: 'DIQPET 방한복', description: '추운 겨울에도 체온을 유지해주는 고성능 패딩 스타일의 보온 의류입니다.' },
   ],
   en: [
     { id: 'happy_series_vton', name: 'DIQPET Windbreaker', description: 'Functional patchwork design, windproof and splash-proof pet windbreaker.' },
