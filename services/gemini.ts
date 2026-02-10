@@ -19,42 +19,40 @@ const logStep = (stepName: string, startTime: number) => {
 };
 
 /**
- * 图像预处理
+ * 图像处理：将 URL 转换为 Base64 (解决 ApiError 的关键)
  */
-const getGeminiImageData = async (source: string): Promise<{ data: string; mimeType: string }> => {
+const getBase64Data = async (source: string): Promise<string> => {
   try {
     const res = await fetch(source);
     const blob = await res.blob();
-    const base64 = await new Promise<string>((resolve, reject) => {
+    return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+      reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-    return { data: base64, mimeType: blob.type || 'image/jpeg' };
   } catch (e) {
-    console.error("图片转换失败:", e);
     throw new Error("图片预处理失败，请检查网络连接");
   }
 };
 
 /**
  * 步骤 2: 模特轮廓提取
- * 修复了 ApiError：添加了 selection_type 并设置了备选模型逻辑
+ * 修正方案：上传 Data URI 格式的图片，并对齐 SAM 2 接口参数
  */
-async function generatePetMask(imageUrl: string): Promise<string> {
+async function generatePetMask(imageDataUri: string): Promise<string> {
   const start = performance.now();
   fal.config({ credentials: FAL_KEY });
 
   try {
-    console.log("正在通过 SAM 2 识别宠物轮廓...");
+    console.log("正在识别模特轮廓 (SAM 2)...");
     
-    // SAM 2 核心调用逻辑：必须包含 selection_type: "text"
+    // 使用 fal.run 且直接传输 Base64 数据，避开 URL 读取限制
     const result: any = await fal.run("fal-ai/sam2", {
       input: {
-        image_url: imageUrl,
+        image_url: imageDataUri, // 传入 Base64
         selection_type: "text", 
-        prompt: "the body of the animal, excluding the head",
+        prompt: "the body of the animal, including torso and legs",
         mask_limit: 1
       }
     });
@@ -65,42 +63,36 @@ async function generatePetMask(imageUrl: string): Promise<string> {
     logStep("步骤 2: SAM 2 识别完成", start);
     return maskUrl;
   } catch (error: any) {
-    console.warn("SAM 2 报错，正在尝试备选模型 Fast-SAM...", error);
+    console.warn("SAM 2 识别异常，尝试切换至 Fast-SAM...", error);
     
-    // 自动回退逻辑：如果 SAM 2 失败，尝试更稳健的 Fast-SAM
-    try {
-      const fallbackResult: any = await fal.run("fal-ai/fast-sam", {
-        input: {
-          image_url: imageUrl,
-          text_prompt: "the torso of the animal"
-        }
-      });
-      const fallbackUrl = fallbackResult?.masks?.[0]?.url;
-      if (!fallbackUrl) throw new Error("备选模型也未生成掩码");
-      
-      logStep("步骤 2: Fast-SAM 识别完成 (备选方案)", start);
-      return fallbackUrl;
-    } catch (fallbackError) {
-      console.error("所有识别模型均失败:", fallbackError);
-      throw new Error("识别服务异常 (ApiError)，请确认 VPN 节点是否为美国全局模式");
-    }
+    // 自动回退方案：Fast-SAM
+    const fallback: any = await fal.run("fal-ai/fast-sam", {
+      input: {
+        image_url: imageDataUri,
+        text_prompt: "the animal torso"
+      }
+    });
+    const fallbackUrl = fallback?.masks?.[0]?.url;
+    if (!fallbackUrl) throw new Error("所有识别模型均不可用");
+    
+    logStep("步骤 2: Fast-SAM 识别完成 (备选方案)", start);
+    return fallbackUrl;
   }
 }
 
 /**
- * 步骤 4: Flux Fill 局部重绘渲染
+ * 步骤 4: Flux Fill 局部重绘
  */
-async function executeInpaint(imageUrl: string, maskUrl: string, prompt: string): Promise<string> {
+async function executeInpaint(imageDataUri: string, maskUrl: string, prompt: string): Promise<string> {
   const start = performance.now();
   const result: any = await fal.subscribe("fal-ai/flux/dev/fill", {
     input: {
-      image_url: imageUrl,
+      image_url: imageDataUri,
       mask_url: maskUrl,
-      prompt: `${prompt}, professional photography, high-quality pet fashion, white background`,
+      prompt: `${prompt}, professional photography, white background`,
       strength: 0.85, 
       num_inference_steps: 20, 
-      guidance_scale: 3.5,
-      enable_safety_checker: false
+      guidance_scale: 3.5
     }
   });
   logStep("步骤 4: Flux 渲染完成", start);
@@ -108,7 +100,7 @@ async function executeInpaint(imageUrl: string, maskUrl: string, prompt: string)
 }
 
 /**
- * 主工作流函数
+ * 主逻辑
  */
 export const generateFitting = async (
   engine: 'doubao' | 'fal' | 'google', 
@@ -120,7 +112,9 @@ export const generateFitting = async (
   console.clear();
   console.log("%c🚀 任务启动", "color: white; background: #2563eb; padding: 2px 8px; border-radius: 4px;");
 
-  // 1. 豆包逻辑
+  // 预先将图片转为 Base64，确保后续所有 API 都能稳定读取
+  const imageDataUri = await getBase64Data(petImageSource);
+
   if (engine === 'doubao') {
     const openai = new OpenAI({ apiKey: DOUBAO_API_KEY, baseURL: "https://ark.cn-beijing.volces.com/api/v3", dangerouslyAllowBrowser: true });
     const response = await openai.images.generate({
@@ -130,40 +124,34 @@ export const generateFitting = async (
     return response.data[0]?.url || "";
   } 
 
-  // 2. Google 联合逻辑
   if (engine === 'google') {
     if (!GEMINI_API_KEY) throw new Error("GOOGLE_AUTH_ERROR");
 
-    // 第一步：图片转换
-    const imgData = await getGeminiImageData(petImageSource);
-    logStep("步骤 1: 图片转换完成", performance.now());
+    // 1. 获取轮廓
+    const maskUrl = await generatePetMask(imageDataUri);
 
-    // 第二步：轮廓识别
-    const maskUrl = await generatePetMask(petImageSource);
-
-    // 第三步：Gemini 2.0 视觉分析
+    // 2. Gemini 视觉分析
     const geminiStart = performance.now();
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const geminiPrompt = `Analyze this pet photo. Action: Keep the head and breed identical. Generate an English inpainting prompt to replace the body with: "${description}". Ensure a studio white background. Output only the prompt text.`;
+    const geminiPrompt = `Analyze this pet. Generate an English inpainting prompt to replace the body with: "${description}". Background must be white. Output only the prompt text.`;
 
     const result = await model.generateContent([
-      { inlineData: { data: imgData.data, mimeType: imgData.mimeType } },
+      { inlineData: { data: imageDataUri.split(',')[1], mimeType: "image/jpeg" } },
       { text: geminiPrompt }
     ]);
     const optimizedPrompt = result.response.text();
     logStep("步骤 3: Gemini 视觉分析完成", geminiStart);
 
-    // 第四步：执行渲染
-    const resUrl = await executeInpaint(petImageSource, maskUrl, optimizedPrompt);
+    // 3. 渲染
+    const resUrl = await executeInpaint(imageDataUri, maskUrl, optimizedPrompt);
     logStep("✨ 全流程总计耗时", totalStart);
     return resUrl;
   }
 
-  // 3. FAL 快速通道
-  const maskUrl = await generatePetMask(petImageSource);
-  const finalUrl = await executeInpaint(petImageSource, maskUrl, description);
+  const maskUrl = await generatePetMask(imageDataUri);
+  const finalUrl = await executeInpaint(imageDataUri, maskUrl, description);
   logStep("✨ 全流程总计耗时", totalStart);
   return finalUrl;
 };
