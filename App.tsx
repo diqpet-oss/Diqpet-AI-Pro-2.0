@@ -19,31 +19,31 @@ const STYLE_OPTIONS = [
 ];
 
 export default function App() {
-const [selectedBreedId, setSelectedBreedId] = useState('poodle');
-const [assets, setAssets] = useState<ImageAssets>({ 
-  pet: ASSETS_URLS.poodle, 
-  clothing: ASSETS_URLS.happy_raincoat, 
-  result: null 
-});
-
-const fileInputRef = useRef<HTMLInputElement>(null);
-
-// 核心功能：处理本地图片上传并立即显示
-const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      // 1. 将 Base64 存入 assets.pet 以便 UI 显示
-      // 2. 将 ID 设为 'custom' 用来触发 UI 上的选中状态
-      setAssets(prev => ({ ...prev, pet: base64String, result: null }));
-      setSelectedBreedId('custom');
-    };
-    reader.readAsDataURL(file);
-  }
-};
+  // --- 仅保留这一份定义，删除多余的 ---
+  const [selectedBreedId, setSelectedBreedId] = useState('poodle');
+  const [assets, setAssets] = useState<ImageAssets>({ 
+    pet: ASSETS_URLS.poodle, 
+    clothing: ASSETS_URLS.happy_raincoat, 
+    result: null 
+  });
   
+  // 关键：这里只写一次，解决 的报错
+  const fileInputRef = useRef<HTMLInputElement>(null); 
+
+  // 处理上传逻辑
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        // 更新预览并标记为自定义
+        setAssets(prev => ({ ...prev, pet: base64String, result: null }));
+        setSelectedBreedId('custom');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const t = UI_STRINGS[lang];
