@@ -50,15 +50,21 @@ async function generatePetMask(imageUrl: string): Promise<string> {
 /**
  * 内部函数：执行 Flux 局部重绘 (Inpainting)
  */
-async function executeInpaint(imageUrl: string, maskUrl: string, prompt: string): Promise<string> {
+
+async function executeInpaint(imageUrl: string, maskUrl: string, productDesc: string): Promise<string> {
+  // 强制白底/简约背景的提示词，减少 AI 思考环境的时间
+  const cleanPrompt = `A professional studio product shot of a pet wearing ${productDesc}, standing on a plain solid white background, high quality, realistic.`;
+
   const result: any = await fal.subscribe("fal-ai/flux/dev/fill", {
     input: {
       image_url: imageUrl,
       mask_url: maskUrl,
-      prompt: prompt,
-      strength: 0.95,      // 区域内重绘强度
-      guidance_scale: 30,  // 提示词服从度
-      num_inference_steps: 40,
+      prompt: cleanPrompt,
+      strength: 0.85, 
+      // 💡 关键提速：将步数降至 15-20，白底图不需要太多细节迭代
+      num_inference_steps: 18, 
+      guidance_scale: 20,
+      // 这里的尺寸可以根据原图比例微调，保持默认即可
     }
   });
   
