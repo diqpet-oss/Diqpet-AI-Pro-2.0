@@ -105,11 +105,11 @@ export default function App() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
           {/* 步骤 1: 宠物选择 */}
-      <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
+     <section className="bg-zinc-900/40 p-6 rounded-[2.5rem] border border-white/5">
   <div className="flex justify-between items-center mb-5">
     <h2 className="text-xs font-black uppercase tracking-widest text-zinc-400">Step 1: Pet Model</h2>
     
-    {/* 修复：点击此按钮会打开文件选择器 */}
+    {/* 这里调用上面定义的 fileInputRef */}
     <button 
       onClick={() => fileInputRef.current?.click()}
       className="text-[10px] font-black uppercase bg-white/5 px-4 py-2 rounded-xl border border-white/10 hover:bg-orange-600 transition-all"
@@ -126,7 +126,7 @@ export default function App() {
   </div>
 
   <div className="grid grid-cols-4 gap-3">
-    {/* 渲染预设的三个品种 */}
+    {/* 渲染三个默认品种图片 */}
     {['poodle', 'bichon', 'golden'].map(id => (
       <button 
         key={id}
@@ -134,18 +134,18 @@ export default function App() {
           setAssets(prev => ({ ...prev, pet: ASSETS_URLS[id], result: null }));
           setSelectedBreedId(id);
         }}
-        className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedBreedId === id ? 'border-orange-600 scale-105 shadow-lg shadow-orange-600/20' : 'border-transparent opacity-40 hover:opacity-100'}`}
+        className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedBreedId === id ? 'border-orange-600 scale-105' : 'border-transparent opacity-40'}`}
       >
         <img src={ASSETS_URLS[id]} className="w-full h-full object-cover" />
       </button>
     ))}
 
-    {/* 修复：如果选择了自定义图片，在这里显示预览图 */}
+    {/* 核心功能：上传成功后，在这里显示预览 */}
     {selectedBreedId === 'custom' && (
       <div className="aspect-square rounded-2xl overflow-hidden border-2 border-orange-600 scale-105 relative">
         <img src={assets.pet} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-orange-600/20 flex items-center justify-center">
-          <i className="fa-solid fa-check text-white shadow-sm"></i>
+           <span className="text-[8px] font-bold">READY</span>
         </div>
       </div>
     )}
