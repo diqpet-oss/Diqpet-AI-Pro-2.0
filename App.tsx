@@ -68,9 +68,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-orange-500/30">
+    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-orange-500/30 flex flex-col">
       {/* Header */}
-      <header className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between relative z-50">
+      <header className="max-w-7xl mx-auto w-full px-6 py-8 flex items-center justify-between relative z-50">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-orange-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-600/20">
             <i className="fa-solid fa-wand-magic-sparkles text-xl"></i>
@@ -107,10 +107,10 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 pb-12 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto w-full px-4 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
         {/* 控制面板 */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Step 1: Model */}
           <section className="bg-zinc-900/40 p-5 rounded-[2rem] border border-white/5 shadow-inner">
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-4 px-2">{t.step1}</h2>
             <div className="grid grid-cols-4 gap-3">
@@ -123,7 +123,6 @@ export default function App() {
             </div>
           </section>
 
-          {/* Step 2: Product */}
           <section className="bg-zinc-900/40 p-5 rounded-[2rem] border border-white/5">
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-4 px-2">{t.step2}</h2>
             <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
@@ -140,12 +139,7 @@ export default function App() {
             </div>
           </section>
 
-          {/* 生成按钮 */}
-          <button 
-            disabled={loading} 
-            onClick={handleGenerate} 
-            className="w-full py-5 bg-orange-600 hover:bg-orange-500 rounded-full flex items-center justify-center gap-3 transition-all shadow-xl shadow-orange-600/20 active:scale-[0.98] disabled:opacity-50"
-          >
+          <button disabled={loading} onClick={handleGenerate} className="w-full py-5 bg-orange-600 hover:bg-orange-500 rounded-full flex items-center justify-center gap-3 transition-all shadow-xl shadow-orange-600/20 active:scale-[0.98] disabled:opacity-50">
             <i className={`fa-solid ${loading ? 'fa-spinner animate-spin' : 'fa-wand-magic-sparkles'} text-lg`}></i>
             <span className="text-lg font-black italic uppercase tracking-tight">{loading ? t.rendering : t.generate}</span>
           </button>
@@ -162,7 +156,6 @@ export default function App() {
                 </div>
               </div>
             )}
-            
             {assets.result ? (
               <img src={assets.result} className="w-full h-full object-contain p-8 animate-in zoom-in-95 duration-500" alt="Result" />
             ) : (
@@ -173,32 +166,49 @@ export default function App() {
             )}
           </div>
 
-          {/* 底部按钮组 - 手机端对齐优化 */}
+          {/* 底部功能按钮组 */}
           <div className="grid grid-cols-4 sm:flex gap-3">
-            <button 
-              onClick={() => window.open(activeProduct.url, "_blank")} 
-              className="col-span-2 sm:flex-grow py-5 bg-[#007AFF] hover:bg-[#0062CC] rounded-full flex items-center justify-center gap-3 transition-all shadow-lg active:scale-95"
-            >
+            <button onClick={() => window.open(activeProduct.url, "_blank")} className="col-span-2 sm:flex-grow py-5 bg-[#007AFF] hover:bg-[#0062CC] rounded-full flex items-center justify-center gap-3 transition-all shadow-lg active:scale-95">
               <i className="fa-solid fa-cart-shopping text-xl"></i>
-              <span className="text-base sm:text-lg font-black italic uppercase whitespace-nowrap">{t.buyNow}</span>
+              <span className="text-base sm:text-lg font-black italic uppercase">{t.buyNow}</span>
             </button>
-
-            <button 
-              onClick={handleDownload}
-              className="col-span-1 py-5 bg-zinc-800 hover:bg-zinc-700 rounded-full flex items-center justify-center transition-all border border-white/5 active:scale-95 shadow-lg"
-            >
-              <i className="fa-solid fa-download text-lg"></i>
-            </button>
-
-            <button 
-              onClick={handleShare}
-              className="col-span-1 py-5 bg-zinc-800 hover:bg-zinc-700 rounded-full flex items-center justify-center transition-all border border-white/5 active:scale-95 shadow-lg"
-            >
-              <i className="fa-solid fa-share-nodes text-lg"></i>
-            </button>
+            <button onClick={handleDownload} className="col-span-1 py-5 bg-zinc-800 hover:bg-zinc-700 rounded-full flex items-center justify-center transition-all border border-white/5 shadow-lg active:scale-95"><i className="fa-solid fa-download text-lg"></i></button>
+            <button onClick={handleShare} className="col-span-1 py-5 bg-zinc-800 hover:bg-zinc-700 rounded-full flex items-center justify-center transition-all border border-white/5 shadow-lg active:scale-95"><i className="fa-solid fa-share-nodes text-lg"></i></button>
           </div>
         </div>
       </main>
+
+      {/* Footer / Copyright Section */}
+      <footer className="w-full border-t border-white/5 bg-zinc-900/20 backdrop-blur-md py-10 px-6 mt-auto">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col items-center md:items-start gap-2">
+            <div className="flex items-center gap-2 opacity-50 grayscale">
+              <i className="fa-solid fa-wand-magic-sparkles text-sm"></i>
+              <span className="text-sm font-black italic tracking-tighter uppercase">DIQPET <span className="text-white">AI</span></span>
+            </div>
+            <p className="text-[10px] text-zinc-600 font-medium tracking-wide">
+              &copy; 2026 DIQPET Lab. All rights reserved.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-8 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+            <a href="#" className="hover:text-orange-500 transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-orange-500 transition-colors">Terms of Service</a>
+            <a href="#" className="hover:text-orange-500 transition-colors">Contact Us</a>
+          </div>
+
+          <div className="flex items-center gap-4 opacity-30">
+            <i className="fa-brands fa-instagram text-lg hover:opacity-100 cursor-pointer transition-all"></i>
+            <i className="fa-brands fa-x-twitter text-lg hover:opacity-100 cursor-pointer transition-all"></i>
+            <i className="fa-brands fa-youtube text-lg hover:opacity-100 cursor-pointer transition-all"></i>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto mt-6 text-center">
+            <p className="text-[9px] text-zinc-700 font-medium leading-relaxed max-w-2xl mx-auto italic">
+              Disclaimer: The virtual fitting results are generated for illustrative purposes. Actual product appearance on your pet may vary. Please refer to the official Coupang product page for precise sizing and materials.
+            </p>
+        </div>
+      </footer>
     </div>
   );
 }
