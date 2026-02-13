@@ -8,14 +8,14 @@ export default function App() {
   const [isLangOpen, setIsLangOpen] = useState(false);
   
   // 默认选中新上线的博美 (pomeranian) 或保持 poodle
-  const [selectedBreedId, setSelectedBreedId] = useState('pomeranian'); 
+  const [selectedBreedId, setSelectedBreedId] = useState('golden'); 
   const [selectedProductId, setSelectedProductId] = useState('9286790289');
   const [loading, setLoading] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
 
   // 初始化资产路径
   const [assets, setAssets] = useState<ImageAssets>({ 
-    pet: getLocalModelImage('pomeranian'), 
+    pet: getLocalModelImage('golden'), 
     clothing: getLocalApparelImage('9286790289'), 
     result: null 
   });
