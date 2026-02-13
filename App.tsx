@@ -128,7 +128,7 @@ export default function App() {
             <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4 px-1">{t.step1}</h2>
             {/* 品种网格：改为 3 列以支持 6 个品种的完美排列 */}
             <div className="grid grid-cols-3 gap-3">
-              {['pomeranian', 'maltese', 'poodle', 'bichon', 'golden', 'jindo'].map(id => (
+              {['golden', 'jindo','maltese', 'bichon', 'pomeranian', 'poodle' ].map(id => (
                 <button 
                   key={id} 
                   onClick={() => { 
